@@ -1256,94 +1256,76 @@ async function processPdf(file) {
   });
 
   // ── Phase: Filter repeated page-level content (headers/footers) ──
-  // Lines that consistently appear at the same Y position on most pages
-  // are likely page headers or footers. We detect them by:
-  //   1. Grouping lines by discretized Y (4pt bands)
-  //   2. Counting page frequency per band
-  //   3. If a Y band appears on ≥75% of pages AND the same text appears
-  //      at that Y on ≥75% of pages → static header/footer → remove.
-  //   4. Gap-fill: if a band appears on ≥50% of pages and sits between
-  //      two removed bands (within 80pt) → dynamic header line → remove.
+  // For each page, take the top N lines. If a line text (or its first-2-words
+  // prefix) appears among the top lines on ≥75% of pages, it's a header/footer.
   if (lines.length > 0) {
     const totalPages = new Set(lines.map(l => l.page)).size;
     if (totalPages >= 3) {
       const THRESHOLD = Math.max(3, Math.ceil(totalPages * 0.75));
+      const TOP_N = 10; // max lines to check from top of each page
 
-      // ── Step 1: collect stats per Y band ──
-      // yBand → { texts: Map<text, pageCount>, pages: Set<page> }
-      const yStats = new Map();
+      // ── Collect top lines per page ──
+      // pageLines: { pageNum → [text, text, …] }  (in visual order, top→bottom)
+      const pageLines = new Map();
+      // lines are already sorted: page asc, Y desc
       lines.forEach(l => {
         const t = l.text.trim();
-        if (!t) return; // skip empty lines — they're handled by gap-fill
-        const yBand = Math.round(l.y / 10) * 10;
-        if (!yStats.has(yBand)) yStats.set(yBand, { texts: new Map(), pages: new Set() });
-        const s = yStats.get(yBand);
-        s.texts.set(t, (s.texts.get(t) || 0) + 1);
-        s.pages.add(l.page);
+        if (!t) return;
+        if (!pageLines.has(l.page)) pageLines.set(l.page, []);
+        const arr = pageLines.get(l.page);
+        if (arr.length < TOP_N) arr.push(t);
       });
 
-      // ── Step 2: find repeated Y bands (exact text OR word prefix) ──
-      const repeatedBands = new Set();
-      yStats.forEach((s, yBand) => {
-        if (s.pages.size < THRESHOLD) return;
-
-        // Strategy A: same exact text on THRESHOLD+ pages
-        const maxFreq = Math.max(...s.texts.values());
-        if (maxFreq >= THRESHOLD) {
-          repeatedBands.add(yBand);
-          return;
-        }
-
-        // Strategy B: same first-2-words prefix on THRESHOLD+ pages
-        // Catches right-column header lines that wrap differently.
-        const wordPrefixCount = new Map();
-        for (const t of s.texts.keys()) {
-          const prefix = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
-          wordPrefixCount.set(prefix, (wordPrefixCount.get(prefix) || 0) + 1);
-        }
-        if (Math.max(...wordPrefixCount.values()) >= THRESHOLD) {
-          repeatedBands.add(yBand);
-        }
-      });
-
-      // ── Step 3: gap-fill — catch dynamic lines like "Pag.: 76/210 …" ──
-      // that are part of the same header/footer block but have changing text.
-      if (repeatedBands.size >= 2) {
-        const sorted = [...repeatedBands].sort((a, b) => b - a); // top→bottom
-        yStats.forEach((s, yBand) => {
-          if (repeatedBands.has(yBand)) return;
-          if (s.pages.size < Math.max(2, THRESHOLD - 2)) return;
-          // Check if this Y band sits between two removed bands (within 80pt)
-          const above = sorted.find(b => b > yBand);
-          const below = sorted.find(b => b < yBand);
-          if (above !== undefined && below !== undefined) {
-            if (above - yBand < 80 && yBand - below < 80) {
-              repeatedBands.add(yBand);
-            }
-          }
+      // ── Count page frequency of each line (exact match) ──
+      const linePageFreq = new Map(); // text → Set of pages
+      pageLines.forEach((texts, page) => {
+        const seen = new Set();
+        texts.forEach(t => {
+          if (seen.has(t)) return;
+          seen.add(t);
+          if (!linePageFreq.has(t)) linePageFreq.set(t, new Set());
+          linePageFreq.get(t).add(page);
         });
-      }
+      });
 
-      // ── Step 4: apply the filter ──
-      if (repeatedBands.size > 0) {
+      const toRemoveExact = new Set();
+      linePageFreq.forEach((pages, text) => {
+        if (pages.size >= THRESHOLD) toRemoveExact.add(text);
+      });
+
+      // ── Also check by first-2-words prefix ──
+      const prefixPageFreq = new Map(); // prefix → Set of pages
+      pageLines.forEach((texts, page) => {
+        const seen = new Set();
+        texts.forEach(t => {
+          const prefix = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
+          if (prefix.length < 3) return;
+          if (seen.has(prefix)) return;
+          seen.add(prefix);
+          if (!prefixPageFreq.has(prefix)) prefixPageFreq.set(prefix, new Set());
+          prefixPageFreq.get(prefix).add(page);
+        });
+      });
+
+      const toRemovePrefix = new Set();
+      prefixPageFreq.forEach((pages, prefix) => {
+        if (pages.size >= THRESHOLD) toRemovePrefix.add(prefix);
+      });
+
+      // ── Apply the filter ──
+      if (toRemoveExact.size > 0 || toRemovePrefix.size > 0) {
         const before = lines.length;
         lines = lines.filter(l => {
           const t = l.text.trim();
-          // Keep empty lines unless they're in a removed band AND between
-          // two removed bands
-          if (!t) {
-            const yBand = Math.round(l.y / 10) * 10;
-            if (repeatedBands.has(yBand)) return false;
-            // For empty lines not at a removed band, check if they're
-            // vertically adjacent to a removed band
-            const adjacent = repeatedBands.has(yBand + 10) || repeatedBands.has(yBand - 10);
-            return !adjacent;
-          }
-          return !repeatedBands.has(Math.round(l.y / 10) * 10);
+          if (!t) return true; // keep empty lines
+          if (toRemoveExact.has(t)) return false;
+          const prefix = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
+          if (toRemovePrefix.has(prefix) && prefix.length >= 3) return false;
+          return true;
         });
         const removed = before - lines.length;
         if (removed > 0) {
-          console.log(`[filterPageContent] rimosse ${removed} righe header/footer da ${totalPages} pagine`);
+          console.log(`[filterPageHeaders] rimosse ${removed} righe header/footer da ${totalPages} pagine (${toRemoveExact.size} exact + ${toRemovePrefix.size} prefix)`);
         }
       }
     }
