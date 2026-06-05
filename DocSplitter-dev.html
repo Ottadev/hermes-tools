@@ -23,6 +23,16 @@
       --card:   #ffffff;
     }
 
+    /* ── Dark theme ── */
+    [data-theme="dark"] {
+      --ink:    #e8e4de;
+      --paper:  #151520;
+      --accent: #d65a40;
+      --muted:  #7a756e;
+      --rule:   #2a2a40;
+      --card:   #1e1e30;
+    }
+
     * { box-sizing: border-box; }
 
     body {
@@ -564,6 +574,19 @@
       <div class="privacy-dot"></div>
       Elaborazione 100% locale — nessun dato lascia il browser
     </div>
+
+    <!-- ── Dark mode toggle ── -->
+    <div style="display:flex;align-items:center;gap:0.625rem;padding-top:0.25rem;border-top:1px solid #2e2e45;margin-top:0.25rem">
+      <svg width="14" height="14" fill="none" stroke="#7a756e" viewBox="0 0 24 24" stroke-width="2" style="flex-shrink:0">
+        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+      </svg>
+      <span style="font-size:0.7rem;color:#5e5e78;flex:1">Tema scuro</span>
+      <label style="position:relative;display:inline-block;width:32px;height:18px;cursor:pointer">
+        <input type="checkbox" id="themeToggle" style="opacity:0;width:0;height:0">
+        <span style="position:absolute;inset:0;background:#3a3a55;border-radius:100px;transition:0.2s"></span>
+        <span id="themeKnob" style="position:absolute;left:2px;top:2px;width:14px;height:14px;background:#6a6a85;border-radius:50%;transition:0.2s"></span>
+      </label>
+    </div>
   </aside>
 
   <!-- ════ MAIN ════ -->
@@ -663,6 +686,30 @@
 // ─────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── Theme persistence ──
+(function initTheme() {
+  const saved = localStorage.getItem('docsplitter-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (saved === 'dark' || (!saved && prefersDark)) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const cb = document.getElementById('themeToggle');
+    if (cb) cb.checked = true;
+  }
+})();
+
+document.addEventListener('change', function(e) {
+  if (e.target.id === 'themeToggle') {
+    const dark = e.target.checked;
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
+    localStorage.setItem('docsplitter-theme', dark ? 'dark' : 'light');
+    const knob = document.getElementById('themeKnob');
+    if (knob) {
+      knob.style.left = dark ? '16px' : '2px';
+      knob.style.background = dark ? '#d65a40' : '#6a6a85';
+    }
+  }
+});
 
 // ─────────────────────────────────────────────
 // STATE
