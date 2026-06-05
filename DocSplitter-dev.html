@@ -1270,6 +1270,10 @@ async function processPdf(file) {
     if (totalPages >= 3) {
       const THRESHOLD = Math.max(3, Math.ceil(totalPages * 0.75));
 
+      // Normalize text: strip NBSP, zero-width chars, normalize whitespace
+      const norm = s => s.replace(/[\u00A0\u2000-\u200F\u2028-\u202F\uFEFF]/g, ' ')
+                         .replace(/\s+/g, ' ').trim();
+
       // Count how many pages each text/prefix appears on
       const exactPages = new Map();   // text → Set<page>
       const p2Pages = new Map();      // first 2 words (lower) → Set<page>
@@ -1278,7 +1282,7 @@ async function processPdf(file) {
       // Group lines by page first, to count each unique match once per page
       const pageGroups = new Map(); // page → [{text, p2, p1}, ...]
       lines.forEach(l => {
-        const t = l.text.trim();
+        const t = norm(l.text);
         if (!t || t.length < 2) return;
         if (!pageGroups.has(l.page)) pageGroups.set(l.page, []);
         pageGroups.get(l.page).push({
@@ -1326,7 +1330,7 @@ async function processPdf(file) {
       if (toRemove.size > 0) {
         const before = lines.length;
         lines = lines.filter(l => {
-          const t = l.text.trim();
+          const t = norm(l.text);
           if (!t) return true;
           if (toRemove.has(t)) return false;
           const p2 = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
