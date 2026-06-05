@@ -1284,17 +1284,29 @@ async function processPdf(file) {
 // SECTION BUILDER
 // ─────────────────────────────────────────────
 function buildSections(blocks) {
-  // Divisione per paragrafo come da PRD: ogni blocco normale genera
-  // un file separato. Le annotazioni vengono accodate al blocco
-  // precedente (per prossimità Y, gia' fatto upstream).
+  // Divisione per paragrafo come da PRD: i blocchi tra un "!" e l'altro
+  // (separatori Cisco) vengono raggruppati in un unico file.
   const sections     = [];
   let curTitle       = null;
   let curTitleText   = null;
+  let curContent     = [];
+
+  function flush() {
+    if (curContent.length > 0) {
+      sections.push({
+        title     : curTitle,
+        titleText : curTitleText,
+        content   : curContent.join('\n')
+      });
+      curContent = [];
+    }
+  }
 
   blocks.forEach(block => {
     if (block.isAnnotation) return; // gia' fuse upstream
 
     if (block.isTitle) {
+      flush();
       curTitle     = block.text.trim();
       curTitleText = (block.titleText || block.text).trim();
       sections.push({
@@ -1305,17 +1317,20 @@ function buildSections(blocks) {
       return;
     }
 
-    // Ogni blocco non-titolo → file separato (PRD §5)
     const t = block.text.trim();
-    if (t) {
-      sections.push({
-        title     : curTitle,
-        titleText : curTitleText,
-        content   : t
-      });
+    if (!t) return;
+
+    // "!" da solo e' separatore tra blocchi di comandi
+    if (/^!\s*$/.test(t)) {
+      flush();
+      return;
     }
+
+    // Accumula righe di config nello stesso blocco
+    curContent.push(t);
   });
 
+  flush();
   return sections;
 }
 
