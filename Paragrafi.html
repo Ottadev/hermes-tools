@@ -1254,24 +1254,27 @@ async function processPdf(file) {
     });
   });
 
-  // ── Per-page merge: blocchi sinistri poi destri per pagina ──
-  // Scansione lineare per pagina: prima tutti i blocchi di sinistra
-  // (config), poi tutti i blocchi di destra (annotazioni). buildSections
-  // allega automaticamente le annotazioni isAnnotation alla sezione
-  // corrente, evitando la fragile logica Y/pagina di sectionEndIdx.
-  const allPages = [...new Set([
-    ...leftBlocks.map(b => b.page),
-    ...rightBlocks.map(b => b.page)
-  ])].sort((a, b) => a - b);
+  // ── Accorpa annotazioni al paragrafo precedente per prossimità Y ──
+  // Ogni right block (annotazione) viene fusa nel left block che lo
+  // precede immediatamente sulla stessa pagina, in ordine Y top→bottom.
+  // buildSections riceve solo left blocks — ogni blocco è un file.
+  const allBlocks = [...leftBlocks, ...rightBlocks];
+  allBlocks.sort((a, b) => {
+    if (a.page !== b.page) return a.page - b.page;
+    return b.y - a.y;
+  });
 
-  const blocks = [];
-  for (const p of allPages) {
-    leftBlocks.filter(b => b.page === p).forEach(lb => blocks.push(lb));
-    rightBlocks
-      .filter(b => b.page === p)
-      .sort((a, b) => b.y - a.y)
-      .forEach(rb => blocks.push(rb));
+  // Per ogni annotazione, trova il left block precedente e fondi il testo
+  for (let i = 0; i < allBlocks.length; i++) {
+    if (!allBlocks[i].isAnnotation) continue;
+    for (let j = i - 1; j >= 0; j--) {
+      if (allBlocks[j].isAnnotation || allBlocks[j].isTitle) continue;
+      allBlocks[j].text += '\n' + allBlocks[i].text;
+      break;
+    }
   }
+
+  const blocks = leftBlocks;
 
   setStatus('Costruzione sezioni…', 88);
   return buildSections(blocks);
