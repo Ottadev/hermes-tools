@@ -1269,15 +1269,13 @@ async function processPdf(file) {
       // Helper: collect lines at the top of each page
       function collectPageLines(lines, fromTop, maxCount) {
         const map = new Map();
-        lines.forEach(l => {
+        const iter = fromTop ? lines : [...lines].reverse();
+        iter.forEach(l => {
           const t = l.text.trim();
           if (!t) return;
           if (!map.has(l.page)) map.set(l.page, []);
           const arr = map.get(l.page);
-          if (arr.length < maxCount) {
-            if (fromTop) arr.push(t);
-            else arr.unshift(t); // bottom: prepend to keep visual order
-          }
+          if (arr.length < maxCount) arr.push(t);
         });
         return map;
       }
