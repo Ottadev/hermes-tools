@@ -1275,7 +1275,7 @@ async function processPdf(file) {
       lines.forEach(l => {
         const t = l.text.trim();
         if (!t) return; // skip empty lines — they're handled by gap-fill
-        const yBand = Math.round(l.y / 6) * 6;
+        const yBand = Math.round(l.y / 10) * 10;
         if (!yStats.has(yBand)) yStats.set(yBand, { texts: new Map(), pages: new Set() });
         const s = yStats.get(yBand);
         s.texts.set(t, (s.texts.get(t) || 0) + 1);
@@ -1317,18 +1317,18 @@ async function processPdf(file) {
           // Keep empty lines unless they're in a removed band AND between
           // two removed bands
           if (!t) {
-            const yBand = Math.round(l.y / 6) * 6;
+            const yBand = Math.round(l.y / 10) * 10;
             if (repeatedBands.has(yBand)) return false;
             // For empty lines not at a removed band, check if they're
             // vertically adjacent to a removed band
-            const adjacent = repeatedBands.has(yBand + 6) || repeatedBands.has(yBand - 6);
+            const adjacent = repeatedBands.has(yBand + 10) || repeatedBands.has(yBand - 10);
             return !adjacent;
           }
-          return !repeatedBands.has(Math.round(l.y / 6) * 6);
+          return !repeatedBands.has(Math.round(l.y / 10) * 10);
         });
         const removed = before - lines.length;
         if (removed > 0) {
-          console.log(`[filterRepeatedContent] rimosse ${removed} righe header/footer da ${totalPages} pagine`);
+          console.log(`[filterPageContent] rimosse ${removed} righe header/footer da ${totalPages} pagine`);
         }
       }
     }
@@ -1621,7 +1621,7 @@ function filterRepeatedContent(sections) {
     });
   });
 
-  const threshold = Math.ceil(sections.length * 0.8);
+  const threshold = Math.ceil(sections.length * 0.6);
   const toRemove = new Set(
     [...lineFreq.entries()]
       .filter(([_, count]) => count >= threshold)
