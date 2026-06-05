@@ -621,6 +621,19 @@
         <span id="themeKnob" style="position:absolute;left:2px;top:2px;width:14px;height:14px;background:#6a6a85;border-radius:50%;transition:0.2s"></span>
       </label>
     </div>
+
+    <!-- ── Anonymize toggle ── -->
+    <div style="display:flex;align-items:center;gap:0.625rem;padding-top:0.25rem;border-top:1px solid #2e2e45;margin-top:0.125rem">
+      <svg width="14" height="14" fill="none" stroke="var(--sidebar-muted)" viewBox="0 0 24 24" stroke-width="2" style="flex-shrink:0">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <span style="font-size:0.7rem;color:var(--sidebar-muted);flex:1">Anonimizza IP e ASN</span>
+      <label style="position:relative;display:inline-block;width:32px;height:18px;cursor:pointer">
+        <input type="checkbox" id="anonToggle" style="opacity:0;width:0;height:0">
+        <span style="position:absolute;inset:0;background:var(--sidebar-muted);border-radius:100px;transition:0.2s"></span>
+        <span id="anonKnob" style="position:absolute;left:2px;top:2px;width:14px;height:14px;background:#6a6a85;border-radius:50%;transition:0.2s"></span>
+      </label>
+    </div>
   </aside>
 
   <!-- ════ MAIN ════ -->
@@ -743,6 +756,14 @@ document.addEventListener('change', function(e) {
       knob.style.background = dark ? '#d65a40' : '#6a6a85';
     }
   }
+  if (e.target.id === 'anonToggle') {
+    const on = e.target.checked;
+    const knob = document.getElementById('anonKnob');
+    if (knob) {
+      knob.style.left = on ? '16px' : '2px';
+      knob.style.background = on ? '#d65a40' : '#6a6a85';
+    }
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -838,7 +859,8 @@ downloadBtn.addEventListener('click', async () => {
   downloadBtn.disabled = true;
   downloadBtn.textContent = 'Generazione…';
   try {
-    const blob = await generateZip(currentSections, currentFileName);
+    const anon = document.getElementById('anonToggle')?.checked || false;
+    const blob = await generateZip(currentSections, currentFileName, anon);
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
@@ -1549,6 +1571,26 @@ function applyCommentPrefixes(text) {
 }
 
 // ─────────────────────────────────────────────
+// ANONYMIZATION
+// ─────────────────────────────────────────────
+/**
+ * Anonimizza dati sensibili nei file generati:
+ * - Primo ottetto degli indirizzi IP (es. 10.0.0.1 → XXX.0.0.1)
+ * - Numeri BGP ASN (es. "bgp 65000" → "bgp XXXXX")
+ * - Numeri AS (es. "AS65000" → "ASXXXXX")
+ * Le subnet mask (255.x.x.x) vengono preservate.
+ */
+function anonymizeContent(text) {
+  return text
+    // Primo ottetto IP (esclude subnet mask 255.x.x.x)
+    .replace(/\b(?!255\.)(\d{1,3})\.(\d{1,3}\.\d{1,3}\.\d{1,3})\b/g, 'XXX.$2')
+    // BGP ASN dopo "bgp "
+    .replace(/\bbgp\s+(\d{1,5})\b/gi, 'bgp XXXXX')
+    // AS + numero (es. AS65000, AS 65000)
+    .replace(/\bAS\s*(\d{1,5})\b/gi, 'ASXXXXX');
+}
+
+// ─────────────────────────────────────────────
 // SHORT SECTION MERGE
 // ─────────────────────────────────────────────
 /**
@@ -1822,7 +1864,7 @@ function assignFileNames(sections) {
 // ─────────────────────────────────────────────
 // ZIP GENERATION
 // ─────────────────────────────────────────────
-async function generateZip(sections, origName) {
+async function generateZip(sections, origName, anonymize) {
   const zip  = new JSZip();
   const date = new Date().toLocaleString('it-IT', {
     day:'2-digit', month:'2-digit', year:'numeric',
@@ -1849,7 +1891,11 @@ async function generateZip(sections, origName) {
   zip.file('INDICE.txt', idx);
 
   // ── Content files (with folder structure) ──
-  sections.forEach(s => zip.file(s.zipPath || s.fileName, applyCommentPrefixes(s.content)));
+  sections.forEach(s => {
+    let text = s.content;
+    if (anonymize) text = anonymizeContent(text);
+    zip.file(s.zipPath || s.fileName, applyCommentPrefixes(text));
+  });
 
   return zip.generateAsync({ type: 'blob' });
 }
