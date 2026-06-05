@@ -1282,13 +1282,28 @@ async function processPdf(file) {
         s.pages.add(l.page);
       });
 
-      // ── Step 2: find statically repeated Y bands ──
+      // ── Step 2: find repeated Y bands (exact text OR word prefix) ──
       const repeatedBands = new Set();
       yStats.forEach((s, yBand) => {
         if (s.pages.size < THRESHOLD) return;
-        // Same exact text appears on THRESHOLD or more pages
+
+        // Strategy A: same exact text on THRESHOLD+ pages
         const maxFreq = Math.max(...s.texts.values());
-        if (maxFreq >= THRESHOLD) repeatedBands.add(yBand);
+        if (maxFreq >= THRESHOLD) {
+          repeatedBands.add(yBand);
+          return;
+        }
+
+        // Strategy B: same first-2-words prefix on THRESHOLD+ pages
+        // Catches right-column header lines that wrap differently.
+        const wordPrefixCount = new Map();
+        for (const t of s.texts.keys()) {
+          const prefix = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
+          wordPrefixCount.set(prefix, (wordPrefixCount.get(prefix) || 0) + 1);
+        }
+        if (Math.max(...wordPrefixCount.values()) >= THRESHOLD) {
+          repeatedBands.add(yBand);
+        }
       });
 
       // ── Step 3: gap-fill — catch dynamic lines like "Pag.: 76/210 …" ──
