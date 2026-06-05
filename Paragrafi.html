@@ -1284,44 +1284,66 @@ async function processPdf(file) {
 // SECTION BUILDER
 // ─────────────────────────────────────────────
 function buildSections(blocks) {
-  // Versione "Paragrafi": ogni blocco genera il proprio file.
-  // Annotations vengono accodate al file del blocco precedente.
+  // Versione "Paragrafi": blocchi di righe config logicamente correlati.
+  // Raggruppa blocchi consecutivi finche' non trova un "!" da solo
+  // (separatore tra blocchi interfaccia) o un titolo.
   const sections     = [];
   let curTitle       = null;
   let curTitleText   = null;
+  let curContent     = [];
+
+  function flush() {
+    if (curContent.length > 0) {
+      sections.push({
+        title     : curTitle,
+        titleText : curTitleText,
+        content   : curContent.join('\n')
+      });
+      curContent = [];
+    }
+  }
 
   blocks.forEach(block => {
     if (block.isAnnotation) {
-      // Accoda al file dell'ultimo blocco (non-titolo) creato
-      if (sections.length > 0) {
+      // Accoda al contenuto corrente (se presente)
+      if (curContent.length > 0) {
+        curContent[curContent.length - 1] += '\n' + block.text.trim();
+      } else if (sections.length > 0) {
         const last = sections[sections.length - 1];
-        if (last.content) last.content += '\n' + block.text.trim();
+        last.content += '\n' + block.text.trim();
       }
       return;
     }
 
     if (block.isTitle) {
+      flush();
       curTitle     = block.text.trim();
       curTitleText = (block.titleText || block.text).trim();
+      // Il titolo e' sempre da solo nel suo file
       sections.push({
         title     : curTitle,
         titleText : curTitleText,
-        content   : curTitle  // solo il titolo, niente accumulo
+        content   : curTitle
       });
       return;
     }
 
-    // Paragrafo normale → file separato
     const t = block.text.trim();
-    if (t) {
-      sections.push({
-        title     : curTitle,
-        titleText : curTitleText,
-        content   : t
-      });
+    if (!t) return;
+
+    // "!" da solo e' separatore tra paragrafi
+    if (/^!\s*$/.test(t)) {
+      flush();        // flush blocco precedente
+      curContent.push(t); // "!" come file separato
+      flush();        // flush subito
+      return;
     }
+
+    // Paragrafo normale: accumula con quello precedente
+    curContent.push(t);
   });
 
+  flush();
   return sections;
 }
 
