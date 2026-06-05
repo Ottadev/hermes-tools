@@ -887,9 +887,12 @@ async function handleFile(file) {
     setStatus('Unione sezioni brevi…', 95);
     const sections = mergeShortSections(rawSections);
 
+    setStatus('Rimozione righe ripetute…', 97);
+    const cleaned = filterRepeatedContent(sections);
+
     setStatus('Completato!', 100);
     await sleep(350);
-    showPreview(sections);
+    showPreview(cleaned);
 
   } catch (err) {
     console.error(err);
@@ -1272,7 +1275,7 @@ async function processPdf(file) {
       lines.forEach(l => {
         const t = l.text.trim();
         if (!t) return; // skip empty lines — they're handled by gap-fill
-        const yBand = Math.round(l.y / 4) * 4;
+        const yBand = Math.round(l.y / 6) * 6;
         if (!yStats.has(yBand)) yStats.set(yBand, { texts: new Map(), pages: new Set() });
         const s = yStats.get(yBand);
         s.texts.set(t, (s.texts.get(t) || 0) + 1);
@@ -1314,14 +1317,14 @@ async function processPdf(file) {
           // Keep empty lines unless they're in a removed band AND between
           // two removed bands
           if (!t) {
-            const yBand = Math.round(l.y / 4) * 4;
+            const yBand = Math.round(l.y / 6) * 6;
             if (repeatedBands.has(yBand)) return false;
             // For empty lines not at a removed band, check if they're
             // vertically adjacent to a removed band
-            const adjacent = repeatedBands.has(yBand + 4) || repeatedBands.has(yBand - 4);
+            const adjacent = repeatedBands.has(yBand + 6) || repeatedBands.has(yBand - 6);
             return !adjacent;
           }
-          return !repeatedBands.has(Math.round(l.y / 4) * 4);
+          return !repeatedBands.has(Math.round(l.y / 6) * 6);
         });
         const removed = before - lines.length;
         if (removed > 0) {
@@ -1587,6 +1590,58 @@ function mergeShortSections(sections) {
   }
 
   return out;
+}
+
+// ─────────────────────────────────────────────
+// REPEATED CONTENT FILTER (post-section)
+// ─────────────────────────────────────────────
+/**
+ * Second-pass filter — rimuove da tutte le sezioni le righe di testo
+ * che appaiono identiche nell'80%+ delle sezioni. Serve per catturare
+ * header/footer che il filtro posizionale (pre-section) non ha preso
+ * a causa di variazioni di Y o wrapping del testo.
+ *
+ * La soglia alta (80%) evita falsi positivi con comandi Cisco comuni
+ * come "exit" o "!" che potrebbero apparire legittimamente in molte
+ * sezioni.
+ */
+function filterRepeatedContent(sections) {
+  if (sections.length < 3) return sections;
+
+  // Conta in quante sezioni appare ogni riga (una volta per sezione)
+  const lineFreq = new Map();
+  sections.forEach(s => {
+    const seen = new Set();
+    s.content.split('\n').forEach(line => {
+      const t = line.trim();
+      if (!t || t.length < 3) return;
+      if (seen.has(t)) return;
+      seen.add(t);
+      lineFreq.set(t, (lineFreq.get(t) || 0) + 1);
+    });
+  });
+
+  const threshold = Math.ceil(sections.length * 0.8);
+  const toRemove = new Set(
+    [...lineFreq.entries()]
+      .filter(([_, count]) => count >= threshold)
+      .map(([line]) => line)
+  );
+
+  if (toRemove.size === 0) return sections;
+
+  const linesBefore = sections.reduce((sum, s) => sum + s.content.split('\n').length, 0);
+
+  const result = sections.map(s => {
+    const lines = s.content.split('\n');
+    const filtered = lines.filter(line => !toRemove.has(line.trim()));
+    return { ...s, content: filtered.join('\n') };
+  });
+
+  const linesAfter = result.reduce((sum, s) => sum + s.content.split('\n').length, 0);
+  console.log(`[filterRepeatedContent] rimosse ${linesBefore - linesAfter} righe (${toRemove.size} pattern unici) da ${sections.length} sezioni`);
+
+  return result;
 }
 
 // ─────────────────────────────────────────────
