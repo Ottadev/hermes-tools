@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DocSplitter — Paragrafi</title>
+  <title>DocSplitter</title>
 
   <!-- CDN Libraries -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -535,7 +535,8 @@
     </div>
 
     <p class="sidebar-desc">
-      Versione <strong>Paragrafi</strong> &mdash; divide un PDF o DOCX in file separati, uno per ogni paragrafo. Le note a destra vengono accodate al paragrafo precedente.
+      Divide automaticamente un documento PDF o DOCX in più file <span class="mono" style="color:#c84b31;font-size:0.75rem">.txt</span>
+      separati, usando i titoli in <strong style="color:#e8e4de">grassetto</strong> come separatori.
     </p>
 
     <hr class="sidebar-rule">
@@ -657,26 +658,7 @@
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════════════════════
-// CONFIGURAZIONE — modifica per adattare ai tuoi PDF
-// ═══════════════════════════════════════════════════════════════
-
-// Soglia split colonna destra (percentuale larghezza pagina).
-//   0  = auto-detect (default) — cerca gutter tra colonne
-//  45  = 45% — forza split a meta circa pagina (Cisco tabelle)
-// Imposta 45-50 se vedi annotazioni mescolate ai comandi.
-const COLUMN_SPLIT_PCT = 0;
-
-// Soglia pre-merge (pt). Fonde item ravvicinati sulla stessa riga.
-// Più alto = più frammenti uniti ma rischio di fondere colonne.
-const MERGE_THRESHOLD = 40;
-
-// Soglia detection gutter (pt). Gap minimo per riconoscere colonna.
-// Più basso = più sensibile ma più falsi positivi.
-const MIN_GAP = 50;
-// ═══════════════════════════════════════════════════════════════
-
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // SETUP
 // ─────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -1038,53 +1020,90 @@ async function processPdf(file) {
   });
   Object.values(roughMap).forEach(l => l.items.sort((a, b) => a.x - b.x));
 
-  // ── Pre-merge: fonde item ravvicinati sulla stessa riga grezza ──
-  // I placeholder PDF come "<INTERFACE>.<S-TAG-TAG>" vengono spesso
-  // estratti come item separati con un piccolo gap che scambiamo per
-  // gutter di colonna. Fonderli PRIMA della column detection elimina
-  // il falso positivo alla radice.
-  // Soglia modulata: cattura i frammenti ma NON il gutter colonna
-  Object.values(roughMap).forEach(line => {
-    if (line.items.length < 2) return;
-    const merged = [Object.assign({}, line.items[0])];
-    for (let i = 1; i < line.items.length; i++) {
-      const prev = merged[merged.length - 1];
-      const gap  = line.items[i].x - (prev.x + (prev.w || 0));
-      if (gap < MERGE_THRESHOLD) {
-        prev.str += (gap > 2.5 ? ' ' : '') + line.items[i].str;
-        prev.w = (line.items[i].x + (line.items[i].w || 0)) - prev.x;
-      } else {
-        merged.push(Object.assign({}, line.items[i]));
-      }
-    }
-    line.items = merged;
-  });
+  // ── Phase 2: detect column split per page ──
+  //
+  // Previous approach (within-line gaps) had a fatal false-positive:
+  // long config lines containing template placeholders like <INTERFACE>.<S-TAG>
+  // create large internal horizontal gaps that look exactly like a column
+  // gutter. This caused those tokens to be classified as right-column and
+  // silently disappear from the main content.
+  //
+  // New primary strategy — unique-Y cluster detection:
+  //   A genuine right column has a CONSISTENT left margin that appears on
+  //   MANY different Y levels (one per annotation line). A stray token from
+  //   a long left-column line appears at a given X on exactly ONE Y level.
+  //   → Count distinct Y levels per X-band; the band with the highest count
+  //     is the right-column margin.
+  //
+  // Fallback strategy — within-line gaps (kept for edge cases where the
+  //   right column has too few lines to form a clear cluster).
 
-  // ── Phase 2: column split per page via gap detection (post-merge) ──
-  // Il pre-merge ha gia fuso i frammenti di placeholder.
-  // I gap rimanenti >= MIN_GAP sono gutter di colonna veri.
-  const pageSplits = {};
-
-  // Se COLUMN_SPLIT_PCT > 0, salta la gap detection e usa soglia fissa
-  if (COLUMN_SPLIT_PCT > 0) {
-    Object.keys(pageWidths).forEach(p => {
-      const pn = parseInt(p);
-      const pW = pageWidths[pn] || 595;
-      pageSplits[pn] = pW * (COLUMN_SPLIT_PCT / 100);
-    });
-  } else {
   const pageRoughLines = {};
   Object.values(roughMap).forEach(l => {
     if (!pageRoughLines[l.page]) pageRoughLines[l.page] = [];
     pageRoughLines[l.page].push(l);
   });
 
-  Object.keys(pageRoughLines).forEach(p => {
-    const pn  = parseInt(p);
-    const pW  = pageWidths[pn] || 595;
-    const minGap = MIN_GAP; // dalla configurazione globale
+  const pageItemsMap = {};
+  allItems.forEach(i => {
+    if (!pageItemsMap[i.page]) pageItemsMap[i.page] = [];
+    pageItemsMap[i.page].push(i);
+  });
 
+  const pageSplits = {};
+  Object.keys(pageRoughLines).forEach(p => {
+    const pn     = parseInt(p);
+    const pW     = pageWidths[pn] || 595;
+    const pItems = pageItemsMap[pn] || [];
+
+    // ── Strategy A: unique-Y cluster ──
+    // Consider only items in the right 40–90 % of the page.
+    const rightZone = pItems.filter(i =>
+      i.x > pW * 0.4 && i.x < pW * 0.9 && i.str.trim().length > 0
+    );
+
+    if (rightZone.length >= 3) {
+      // Bucket items into 8pt X-bands and count distinct Y levels per band.
+      const xBandYSets = {};
+      rightZone.forEach(i => {
+        const xb = Math.round(i.x / 8) * 8;
+        if (!xBandYSets[xb]) xBandYSets[xb] = new Set();
+        xBandYSets[xb].add(Math.round(i.y / 4) * 4);
+      });
+
+      const bandRanked = Object.entries(xBandYSets)
+        .map(([b, ys]) => ({ b: parseFloat(b), yCount: ys.size }))
+        .sort((a, z) => z.yCount - a.yCount);
+
+      if (bandRanked[0] && bandRanked[0].yCount >= 3) {
+        const rcBand = bandRanked[0].b;
+
+        // rcMinX: leftmost item actually inside the winning band (±12pt)
+        const inBand = rightZone.filter(i => Math.abs(i.x - rcBand) <= 12);
+        const rcMinX = Math.min(...inBand.map(i => i.x));
+
+        // lMaxX: rightmost left-column item, using 40pt pre-margin to stay
+        // well clear of the right-column zone (tuned value that prevents
+        // long-line tokens from inflating lMaxX into the gutter).
+        const lMaxX = pItems
+          .filter(i => i.x < rcBand - 40)
+          .reduce((m, i) => Math.max(m, i.x), 0);
+
+        const gutter = rcMinX - lMaxX;
+
+        // Place split at 50% into the gutter (tuned: avoids cutting into
+        // either column when the gutter is narrow, e.g. 10–20pt).
+        pageSplits[pn] = gutter > 4
+          ? Math.round(lMaxX + gutter * 0.50)
+          : rcMinX - 6;
+        return;
+      }
+    }
+
+    // ── Strategy B: within-line gap fallback ──
+    const minGap = Math.max(20, pW * 0.03);
     const rightStartXs = [];
+
     pageRoughLines[pn].forEach(line => {
       const items = line.items;
       for (let i = 1; i < items.length; i++) {
@@ -1105,21 +1124,8 @@ async function processPdf(file) {
 
     const splitX = filtRX[0];
     if (splitX < pW * 0.3 || splitX > pW * 0.85) { pageSplits[pn] = null; return; }
-
-    pageSplits[pn] = splitX;
+    pageSplits[pn] = splitX - Math.max(20, minGap);
   });
-
-  // ── Fallback: pagine senza gutter ma con item a destra (tabelle) ──
-  // Se la gap detection non ha trovato colonne ma ci sono item oltre
-  // il 50% della pagina, usa threshold fisso (tabelle senza gutter).
-  for (const p in pageSplits) {
-    if (pageSplits[p] !== null) continue;
-    const pn = parseInt(p);
-    const pW = pageWidths[pn] || 595;
-    const hasRight = allItems.some(item => item.page === pn && item.x > pW * 0.50);
-    if (hasRight) pageSplits[pn] = pW * 0.50;
-  }
-  } // fine else (COLUMN_SPLIT_PCT === 0)
 
   // ── Phase 3: column-aware line grouping ──
   // Each item is classified BEFORE entering the line bucket.
@@ -1229,13 +1235,6 @@ async function processPdf(file) {
     });
   });
 
-  // leftBlocks arriva in ordine bottom→top (da 'lines' sorted per b.y-a.y).
-  // Riordiniamo per pagina ascendente e Y discendente (top→bottom).
-  leftBlocks.sort((a, b) => {
-    if (a.page !== b.page) return a.page - b.page;
-    return b.y - a.y;
-  });
-
   // ── Convert right paragraphs → annotation blocks ──
   // Right-column lines are soft-wrapped text: join with space, not newline.
   // Prepend "! " to annotations that start with "(" (footnote marker).
@@ -1254,22 +1253,39 @@ async function processPdf(file) {
     });
   });
 
-  // ── Per-page merge: annotazioni dopo tutti i comandi della pagina ──
-  // buildSections (originale) raggruppa per titolo; le isAnnotation
-  // vengono accodate in fondo al contenuto della sezione.
-  const allPages = [...new Set([
-    ...leftBlocks.map(b => b.page),
-    ...rightBlocks.map(b => b.page)
-  ])].sort((a, b) => a - b);
+  // ── Place each annotation block at the end of its logical section ──
+  // Strategy: find the last left block that belongs to the same "section"
+  // (between the nearest preceding title and the next title in the left stream).
+  const titlePositions = leftBlocks
+    .map((lb, i) => ({ i, page: lb.page, y: lb.y }))
+    .filter((_, i) => leftBlocks[i].isTitle);
+
+  function sectionEndIdx(rb) {
+    for (let k = 0; k < titlePositions.length; k++) {
+      const tp     = titlePositions[k];
+      const nextTp = titlePositions[k + 1];
+      const afterTitle  = rb.page > tp.page ||
+        (rb.page === tp.page && rb.y <= tp.y);
+      const beforeNext  = !nextTp || rb.page < nextTp.page ||
+        (rb.page === nextTp.page && rb.y > nextTp.y);
+      if (afterTitle && beforeNext) {
+        return nextTp ? nextTp.i - 1 : leftBlocks.length - 1;
+      }
+    }
+    return leftBlocks.length - 1;
+  }
+
+  const insertAfter = leftBlocks.map(() => []);
+  rightBlocks.forEach(rb => {
+    const idx = sectionEndIdx(rb);
+    insertAfter[Math.min(idx, insertAfter.length - 1)].push(rb);
+  });
 
   const blocks = [];
-  for (const p of allPages) {
-    leftBlocks.filter(b => b.page === p).forEach(lb => blocks.push(lb));
-    rightBlocks
-      .filter(b => b.page === p)
-      .sort((a, b) => b.y - a.y)
-      .forEach(rb => blocks.push(rb));
-  }
+  leftBlocks.forEach((lb, i) => {
+    blocks.push(lb);
+    insertAfter[i].forEach(rb => blocks.push(rb));
+  });
 
   setStatus('Costruzione sezioni…', 88);
   return buildSections(blocks);
@@ -1279,8 +1295,8 @@ async function processPdf(file) {
 // SECTION BUILDER
 // ─────────────────────────────────────────────
 function buildSections(blocks) {
-  // Raggruppa per titolo (logica PRD): ogni titolo bold O intestazione
-  // numerata (es. "4.4.2.1.1 CPE") avvia un nuovo file.
+  // Raggruppa per titolo: ogni titolo bold O intestazione numerata
+  // (es. "4.4.2.1.1 CPE") avvia un nuovo file.
   const sections     = [];
   let curTitle       = null;
   let curTitleText   = null;
@@ -1291,14 +1307,12 @@ function buildSections(blocks) {
   }
 
   blocks.forEach(block => {
-    // Annotations vengono accodate al contenuto corrente
     if (block.isAnnotation) {
       const t = block.text.trim();
       if (t) curContent.push(t);
       return;
     }
 
-    // Titolo bold o intestazione numerata → split
     const t = block.text.trim();
     if (block.isTitle || (t && isHeading(t))) {
       if (curContent.length > 0) {
@@ -1314,7 +1328,6 @@ function buildSections(blocks) {
       return;
     }
 
-    // Contenuto normale
     if (t) curContent.push(t);
   });
 
@@ -1344,96 +1357,6 @@ function applyCommentPrefixes(text) {
   }).join('\n');
 }
 
-/**
- * Ripara righe spezzate da un falso split di colonna: se una riga ha
- * un < aperto ma non il > corrispondente, prova a fondere con la riga
- * successiva fino a chiudere la parentesi.
- */
-function repairBrokenBrackets(text) {
-  const lines = text.split('\n');
-  const out   = [];
-  let pending = '';
-
-  for (const line of lines) {
-    const merged = pending ? pending + ' ' + line : line;
-
-    const opens  = (merged.match(/</g) || []).length;
-    const closes = (merged.match(/>/g) || []).length;
-
-    if (opens > closes) {
-      pending = merged;
-    } else {
-      out.push(merged);
-      pending = '';
-    }
-  }
-  if (pending) out.push(pending);
-
-  return out.join('\n');
-}
-
-/**
- * Rileva e sposta a fine sezione le righe di annotazione (note a piè
- * di pagina nelle tabelle a destra). Cerca pattern "(1)", "! (1)" ecc.
- * e accumula le righe di continuazione (minuscole, non comandi) fino
- * al prossimo comando/separatore, poi le riposiziona in fondo.
- */
-function extractAnnotations(text) {
-  const lines = text.split('\n');
-  const clean = [];
-  const notes = [];
-  let buf = '';
-  let collecting = false;
-
-  function flush() {
-    if (buf) { notes.push(buf); buf = ''; }
-    collecting = false;
-  }
-
-  for (const line of lines) {
-    const t = line.trim();
-
-    // Inizio annotazione: "(1)" o "! (1)"
-    if (/^!?\s*\(\d+\)/.test(t)) {
-      flush();
-      // Normalizza prefisso: toglie spazi extra, mantiene un solo "!"
-      buf = line.replace(/^!\s*/, '!').replace(/^!(\s*)/, '!$1');
-      collecting = true;
-      continue;
-    }
-
-    if (collecting) {
-      // Stop alla prima riga che non sia continuazione
-      if (/^!-/.test(t) || /^ip\s/.test(t) || /^!\s*$/.test(t) || /^➢/.test(t) || t === '') {
-        flush();
-        clean.push(line);
-        continue;
-      }
-      // Se la riga inizia con testo in minuscolo o parentesi, è continuazione
-      if (/^[a-z(]/.test(t)) {
-        buf += ' ' + t;
-        continue;
-      }
-      // Se c'è testo dopo separator come "!------ testo ----", estrailo
-      const trail = t.match(/!-{3,}.+?-{3,}\s+(.+)$/);
-      if (trail) {
-        buf += ' ' + trail[1];
-        continue;
-      }
-      // Altrimenti flush e tratta normalemente
-      flush();
-    }
-    clean.push(line);
-  }
-  flush();
-
-  if (notes.length) {
-    clean.push('');
-    notes.forEach(n => clean.push(n));
-  }
-  return clean.join('\n');
-}
-
 // ─────────────────────────────────────────────
 // SHORT SECTION MERGE
 // ─────────────────────────────────────────────
@@ -1456,11 +1379,20 @@ function topLevelGroup(title) {
 }
 
 function sameGroup(titleA, titleB) {
+  const pA = titleA ? parseNumericPrefix(titleA) : null;
+  const pB = titleB ? parseNumericPrefix(titleB) : null;
+
+  if (pA && pB) {
+    // Both numbered: merge ONLY siblings (same depth AND same parent).
+    // A parent like "4.4.2" must never absorb its child "4.4.2.1", and vice versa.
+    if (pA.nums.length !== pB.nums.length) return false;
+    return pA.nums.slice(0, -1).join('.') === pB.nums.slice(0, -1).join('.');
+  }
+
+  // Fallback for non-numeric titles: use top-level number as before
   const gA = topLevelGroup(titleA);
   const gB = topLevelGroup(titleB);
-  // If both have a numeric prefix they must share the same top-level number
   if (gA !== null && gB !== null) return gA === gB;
-  // Otherwise (no numeric prefix on at least one) → allow merge
   return true;
 }
 
@@ -1514,7 +1446,7 @@ function cleanTitle(str) {
   return str
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')  // strip diacritics
-    .replace(/[^a-zA-Z0-9 \-]/g, '')  // keep alphanum, space, hyphen
+    .replace(/[^a-zA-Z0-9 \-\.]/g, '')  // keep alphanum, space, hyphen, dot
     .trim()
     .replace(/ +/g, '_')
     .replace(/_+/g, '_')
@@ -1523,94 +1455,123 @@ function cleanTitle(str) {
 }
 
 // ─────────────────────────────────────────────
-// FOLDER RESOLUTION
+// NUMERIC HIERARCHY DETECTION
 // ─────────────────────────────────────────────
-/**
- * Returns the folder path for a section based on its title.
- *
- * Rules:
- *  - No title (intro)            → root  ""
- *  - Title starts with "N " or "N." or "N-" or "N:"
- *      └ top-level  (N has no dot)  → folder "N_CleanTitle/"
- *      └ sub-level  (N = "1.2")     → folder of parent top-level, i.e. "1_…/"
- *  - Title with no numeric prefix → root ""
- *
- * Additionally we track the *last seen top-level folder* so that
- * sub-sections without an explicit prefix are placed inside it.
- */
-function buildFolderIndex(sections) {
-  // First pass: collect top-level entries to build folder names
-  // A top-level entry is one whose numeric prefix has no dot (e.g. "1", "2")
-  const topFolders = Object.create(null); // prefix → "01_CleanName"
 
-  sections.forEach(s => {
-    if (!s.title) return;
-    const m = s.title.match(/^\s*(\d+)[\s.\-:)]/);
-    if (!m) return;
-    const prefix = m[1];
-    if (prefix.includes('.')) return; // sub-level, skip
-    if (topFolders[prefix]) return;   // already registered
-    const name = cleanTitle(s.titleText || s.title) || 'sezione';
-    topFolders[prefix] = `${prefix.padStart(2,'0')}_${name}`;
+/**
+ * Parses a numeric prefix from a section title.
+ *   "4.4.2.1.1 CPE"  →  { numStr:"4.4.2.1.1", nums:[4,4,2,1,1], rest:"CPE" }
+ *   "ar50x"          →  null
+ */
+function parseNumericPrefix(title) {
+  if (!title) return null;
+  const m = title.match(/^\s*(\d+(?:\.\d+)*)\s+(.*)/);
+  if (!m) return null;
+  return {
+    numStr : m[1],
+    nums   : m[1].split('.').map(Number),
+    rest   : m[2].trim()
+  };
+}
+
+/**
+ * For each section decides: PARENT (has at least one sub-section in the list)
+ * or LEAF (no children). Uses only numeric prefixes to build the tree.
+ */
+function computeHierarchyInfo(sections) {
+  const parsedList = sections.map(s => s.title ? parseNumericPrefix(s.title) : null);
+
+  return parsedList.map((p, i) => {
+    if (!p) return { isNumbered: false, isParent: false, isLeaf: true };
+
+    const isParent = parsedList.some((other, j) =>
+      j !== i && other && other.numStr.startsWith(p.numStr + '.')
+    );
+
+    return { isNumbered: true, isParent, isLeaf: !isParent,
+             numStr: p.numStr, nums: p.nums, rest: p.rest };
+  });
+}
+
+// ─────────────────────────────────────────────
+// FILE NAMING — HIERARCHY MODE
+// ─────────────────────────────────────────────
+
+/**
+ * Assigns fileName / folder / zipPath using the numeric heading hierarchy:
+ *
+ *  Numbered section WITH children  → FOLDER
+ *    Its own content goes in a .txt named like the folder, inside it.
+ *    "4.4.2 Scenario Z"  →  4.4.2_Scenario_Z/4.4.2_Scenario_Z.txt
+ *
+ *  Numbered section WITHOUT children (leaf) → FILE inside ancestor folders
+ *    "4.4.2.1.1 CPE"  →  4.4.2_Scenario_Z/4.4.2.1_Internet/4.4.2.1.1_CPE.txt
+ *
+ *  Non-numbered section  → file in the folder of the nearest numbered ancestor
+ *    "ar50x" after 4.4.2.1.1  →  4.4.2_Scenario_Z/4.4.2.1_Internet/ar50x.txt
+ *
+ *  No title at all  →  00_Introduzione.txt at root
+ */
+function assignFileNames(sections) {
+  const info = computeHierarchyInfo(sections);
+
+  // numStr → cleaned name (dots kept: "4.4.2.1.1_CPE")
+  const nameMap = {};
+  sections.forEach((s, i) => {
+    const h = info[i];
+    if (h.isNumbered) {
+      const full = h.rest ? `${h.numStr} ${h.rest}` : h.numStr;
+      nameMap[h.numStr] = cleanTitle(full) || h.numStr.replace(/\./g, '_');
+    }
   });
 
-  return topFolders;
-}
-
-function resolveFolder(title, topFolders, lastTopFolder) {
-  if (!title) return { folder: '', lastTopFolder };
-
-  const m = title.match(/^\s*(\d+)[\s.\-:)]/);
-  if (!m) return { folder: '', lastTopFolder };
-
-  const rawPrefix = m[1];
-
-  if (!rawPrefix.includes('.')) {
-    // This IS a top-level section
-    const folder = topFolders[rawPrefix] || `${rawPrefix.padStart(2,'0')}`;
-    return { folder, lastTopFolder: folder };
+  // Traverse ancestors: depth 1…n to build "A/B/C" folder string.
+  // includeSelf = true  → used for parent sections (they ARE a folder level)
+  // includeSelf = false → used for leaf sections (they sit INSIDE their parent)
+  function ancestorPath(nums, includeSelf) {
+    const parts = [];
+    const limit = includeSelf ? nums.length : nums.length - 1;
+    for (let d = 1; d <= limit; d++) {
+      const key = nums.slice(0, d).join('.');
+      if (nameMap[key]) parts.push(nameMap[key]);
+    }
+    return parts.join('/');
   }
 
-  // Sub-level: use parent top-level number (before first dot)
-  const parentNum = rawPrefix.split('.')[0];
-  const folder    = topFolders[parentNum] || lastTopFolder || '';
-  return { folder, lastTopFolder };
-}
+  let currentFolder = '';   // inherited by non-numbered sections that follow
 
-function assignFileNames(sections) {
-  const topFolders   = buildFolderIndex(sections);
-  let lastTopFolder  = '';
-  let tIdx           = 0;
+  return sections.map((s, i) => {
+    const h = info[i];
 
-  return sections.map(s => {
-    let fileName, folder;
-
+    // ── No title ──────────────────────────────────────────────────────────
     if (!s.title) {
-      fileName = '00_Introduzione.txt';
-      folder   = '';
-    } else {
-      tIdx++;
-      const num  = String(tIdx).padStart(2, '0');
-
-      // Per i paragrafi usa le prime parole del contenuto per il nome file
-      const isTitleBlock = s.content === s.title;
-      let name;
-      if (isTitleBlock) {
-        name = cleanTitle(s.titleText || s.title) || 'sezione';
-      } else {
-        const firstLine = s.content.split('\n')[0].trim();
-        name = cleanTitle(firstLine) || 'paragrafo';
-      }
-
-      fileName   = `${num}_${name}.txt`;
-
-      const resolved  = resolveFolder(s.title, topFolders, lastTopFolder);
-      folder          = resolved.folder;
-      lastTopFolder   = resolved.lastTopFolder;
+      return { ...s, fileName: '00_Introduzione.txt', folder: '', zipPath: '00_Introduzione.txt' };
     }
 
-    // Full path inside ZIP
+    // ── Non-numbered bold heading ─────────────────────────────────────────
+    // Place it in the folder of the most recent numbered ancestor.
+    if (!h.isNumbered) {
+      const name     = cleanTitle(s.titleText || s.title) || 'sezione';
+      const fileName = `${name}.txt`;
+      const zipPath  = currentFolder ? `${currentFolder}/${fileName}` : fileName;
+      return { ...s, fileName, folder: currentFolder, zipPath };
+    }
+
+    const myName   = nameMap[h.numStr];
+    const fileName = `${myName}.txt`;
+
+    // ── Numbered PARENT → folder + same-named file ────────────────────────
+    if (h.isParent) {
+      const folder  = ancestorPath(h.nums, true);   // includes self
+      const zipPath = `${folder}/${fileName}`;
+      currentFolder = folder;
+      return { ...s, fileName, folder, zipPath };
+    }
+
+    // ── Numbered LEAF → file inside ancestor folders ──────────────────────
+    const folder  = ancestorPath(h.nums, false);   // excludes self
     const zipPath = folder ? `${folder}/${fileName}` : fileName;
+    currentFolder = folder;
     return { ...s, fileName, folder, zipPath };
   });
 }
@@ -1645,10 +1606,7 @@ async function generateZip(sections, origName) {
   zip.file('INDICE.txt', idx);
 
   // ── Content files (with folder structure) ──
-  sections.forEach(s => zip.file(
-    s.zipPath || s.fileName,
-    applyCommentPrefixes(repairBrokenBrackets(extractAnnotations(s.content)))
-  ));
+  sections.forEach(s => zip.file(s.zipPath || s.fileName, applyCommentPrefixes(s.content)));
 
   return zip.generateAsync({ type: 'blob' });
 }
