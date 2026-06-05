@@ -1264,7 +1264,7 @@ async function processPdf(file) {
     if (totalPages >= 3) {
       const THRESHOLD = Math.max(3, Math.ceil(totalPages * 0.75));
       const TOP_N = 12;
-      const BOTTOM_M = 6;
+      const BOTTOM_M = 10;
 
       // Helper: collect lines at the top of each page
       function collectPageLines(lines, fromTop, maxCount) {
