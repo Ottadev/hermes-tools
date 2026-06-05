@@ -1452,19 +1452,25 @@ function extractAnnotations(text) {
  */
 const MERGE_MIN_CHARS = 100;
 
-function topLevelGroup(title) {
+function getFullPrefix(title) {
   if (!title) return null;
-  const m = title.match(/^\s*(\d+)[\s.\-:)]/);
+  const m = title.match(/^\s*((?:\d+\.)*\d+)/);
   return m ? m[1] : null;
 }
 
 function sameGroup(titleA, titleB) {
-  const gA = topLevelGroup(titleA);
-  const gB = topLevelGroup(titleB);
-  // If both have a numeric prefix they must share the same top-level number
-  if (gA !== null && gB !== null) return gA === gB;
-  // Otherwise (no numeric prefix on at least one) → allow merge
-  return true;
+  const pA = getFullPrefix(titleA);
+  const pB = getFullPrefix(titleB);
+  // If either has no numeric prefix → allow merge
+  if (!pA || !pB) return true;
+
+  // Parent/child: one is prefix of the other + "."
+  if (pB.startsWith(pA + '.') || pA.startsWith(pB + '.')) return false;
+
+  // Siblings: same parent path → allow merge
+  const parentA = pA.includes('.') ? pA.slice(0, pA.lastIndexOf('.')) : pA;
+  const parentB = pB.includes('.') ? pB.slice(0, pB.lastIndexOf('.')) : pB;
+  return parentA === parentB;
 }
 
 function contentLength(section) {
@@ -1514,10 +1520,27 @@ function mergeShortSections(sections) {
 // ─────────────────────────────────────────────
 function cleanTitle(str) {
   if (!str) return '';
+  // Estrae il prefisso numerico (es. "4.4.2.1.1") separatamente
+  const prefixMatch = str.match(/^(\d+(?:\.\d+)*)\s*(.*)$/);
+  if (prefixMatch) {
+    const nums = prefixMatch[1];       // "4.4.2.1.1"
+    const rest = prefixMatch[2].trim(); // "CPE"
+    const clean = rest
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9 \-]/g, '')
+      .trim()
+      .replace(/ +/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+    const label = clean ? '_' + clean : '';
+    return (nums.replace(/\./g, '_') + label).substring(0, 60);
+  }
+  // Senza prefisso numerico: pulizia normale
   return str
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')  // strip diacritics
-    .replace(/[^a-zA-Z0-9 \-]/g, '')  // keep alphanum, space, hyphen
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 \-]/g, '')
     .trim()
     .replace(/ +/g, '_')
     .replace(/_+/g, '_')
@@ -1526,85 +1549,133 @@ function cleanTitle(str) {
 }
 
 // ─────────────────────────────────────────────
-// FOLDER RESOLUTION
+// FOLDER RESOLUTION (gerarchia reale)
 // ─────────────────────────────────────────────
 /**
- * Returns the folder path for a section based on its title.
- *
- * Rules:
- *  - No title (intro)            → root  ""
- *  - Title starts with "N " or "N." or "N-" or "N:"
- *      └ top-level  (N has no dot)  → folder "N_CleanTitle/"
- *      └ sub-level  (N = "1.2")     → folder of parent top-level, i.e. "1_…/"
- *  - Title with no numeric prefix → root ""
- *
- * Additionally we track the *last seen top-level folder* so that
- * sub-sections without an explicit prefix are placed inside it.
+ * Costruisce l'albero gerarchico: per ogni prefisso numerico,
+ * determina se ha figli e assegna il folder path.
  */
-function buildFolderIndex(sections) {
-  // First pass: collect top-level entries to build folder names
-  // A top-level entry is one whose numeric prefix has no dot (e.g. "1", "2")
-  const topFolders = Object.create(null); // prefix → "01_CleanName"
+function buildHierarchy(sections) {
+  // Mappa prefisso → { name, folder, hasChildren }
+  const nodes = Object.create(null);
+  const order = []; // prefissi in ordine di apparizione
 
+  // Passo 1: registra tutti i prefissi
   sections.forEach(s => {
     if (!s.title) return;
-    const m = s.title.match(/^\s*(\d+)[\s.\-:)]/);
-    if (!m) return;
-    const prefix = m[1];
-    if (prefix.includes('.')) return; // sub-level, skip
-    if (topFolders[prefix]) return;   // already registered
-    const name = cleanTitle(s.titleText || s.title) || 'sezione';
-    topFolders[prefix] = `${prefix.padStart(2,'0')}_${name}`;
+    const p = getFullPrefix(s.title);
+    if (!p) return;
+    if (!nodes[p]) {
+      nodes[p] = { name: '', folder: '', hasChildren: false };
+      order.push(p);
+    }
   });
 
-  return topFolders;
-}
-
-function resolveFolder(title, topFolders, lastTopFolder) {
-  if (!title) return { folder: '', lastTopFolder };
-
-  const m = title.match(/^\s*(\d+)[\s.\-:)]/);
-  if (!m) return { folder: '', lastTopFolder };
-
-  const rawPrefix = m[1];
-
-  if (!rawPrefix.includes('.')) {
-    // This IS a top-level section
-    const folder = topFolders[rawPrefix] || `${rawPrefix.padStart(2,'0')}`;
-    return { folder, lastTopFolder: folder };
+  // Passo 2: marca chi ha figli (un prefisso è figlio se inizia con parent + ".")
+  for (const p of order) {
+    const dot = p.lastIndexOf('.');
+    if (dot === -1) continue;
+    const parent = p.slice(0, dot);
+    if (nodes[parent]) nodes[parent].hasChildren = true;
   }
 
-  // Sub-level: use parent top-level number (before first dot)
-  const parentNum = rawPrefix.split('.')[0];
-  const folder    = topFolders[parentNum] || lastTopFolder || '';
-  return { folder, lastTopFolder };
+  // Passo 3: assegna nome e folder a ogni nodo
+  // I nomi usano punti nei prefissi e cleanTitle per il testo
+  for (const p of order) {
+    const section = sections.find(s => {
+      if (!s.title) return false;
+      return getFullPrefix(s.title) === p;
+    });
+    if (!section) continue;
+
+    const node = nodes[p];
+    const name = cleanTitle(section.titleText || section.title || p);
+    node.name = name;
+
+    // Costruisce folder path: il folder del genitore + nome del genitore
+    const dot = p.lastIndexOf('.');
+    if (dot !== -1) {
+      const parentP = p.slice(0, dot);
+      if (nodes[parentP] && nodes[parentP].hasChildren) {
+        node.folder = nodes[parentP].folder
+          ? nodes[parentP].folder + '/' + nodes[parentP].name
+          : nodes[parentP].name;
+      } else {
+        node.folder = '';
+      }
+    } else {
+      // Top-level (es. "4"): nessun genitore
+      node.folder = '';
+    }
+  }
+
+  return { nodes, order };
 }
 
+/**
+ * Assegna nome file e folder a ogni sezione, con gerarchia reale:
+ * - Heading con figli → cartella (con file .txt stesso nome)
+ * - Heading foglia   → file dentro cartella antenato
+ * - Testo non numerato → file nel folder del piu' recente antenato
+ */
 function assignFileNames(sections) {
-  const topFolders   = buildFolderIndex(sections);
-  let lastTopFolder  = '';
-  let tIdx           = 0;
+  const { nodes, order } = buildHierarchy(sections);
+  let lastFolder = '';
+  let tIdx = 0;
 
   return sections.map(s => {
     let fileName, folder;
 
+    // Sections senza titolo → introduzione, root
     if (!s.title) {
       fileName = '00_Introduzione.txt';
       folder   = '';
-    } else {
-      tIdx++;
-      const num  = String(tIdx).padStart(2, '0');
-      const name = cleanTitle(s.titleText || s.title) || 'sezione';
-      fileName   = `${num}_${name}.txt`;
-
-      const resolved  = resolveFolder(s.title, topFolders, lastTopFolder);
-      folder          = resolved.folder;
-      lastTopFolder   = resolved.lastTopFolder;
+      return { ...s, fileName, folder, zipPath: fileName };
     }
 
-    // Full path inside ZIP  →  "01_Capitolo/03_Paragrafo.txt"  or just "03_Paragrafo.txt"
-    const zipPath = folder ? `${folder}/${fileName}` : fileName;
-    return { ...s, fileName, folder, zipPath };
+    // Estrai prefisso numerico
+    const p = getFullPrefix(s.title);
+
+    if (!p) {
+      // Senza prefisso numerico → nel folder dell'ultimo antenato
+      folder = lastFolder;
+      tIdx++;
+      const num = String(tIdx).padStart(2, '0');
+      const name = cleanTitle(s.titleText || s.title) || 'sezione';
+      fileName = `${num}_${name}.txt`;
+      const zipPath = folder ? `${folder}/${fileName}` : fileName;
+      return { ...s, fileName, folder, zipPath };
+    }
+
+    const node = nodes[p];
+    if (!node) {
+      // Fallback: root
+      tIdx++;
+      const num = String(tIdx).padStart(2, '0');
+      const name = cleanTitle(s.titleText || s.title) || 'sezione';
+      fileName = `${num}_${name}.txt`;
+      folder = '';
+      return { ...s, fileName, folder, zipPath: fileName };
+    }
+
+    const name = node.name;
+    folder = node.folder;
+    const zipFolder = folder ? folder + '/' + name : name;
+
+    if (node.hasChildren) {
+      // Heading con figli → crea cartella + file con lo stesso nome
+      fileName = name + '.txt';
+      lastFolder = zipFolder;
+      return { ...s, fileName, folder: folder, zipPath: zipFolder + '/' + fileName };
+    } else {
+      // Heading foglia → file dentro cartella del genitore
+      tIdx++;
+      const num = String(tIdx).padStart(2, '0');
+      fileName = `${num}_${name}.txt`;
+      lastFolder = folder;
+      const zipPath = folder ? `${folder}/${fileName}` : fileName;
+      return { ...s, fileName, folder, zipPath };
+    }
   });
 }
 
