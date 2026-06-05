@@ -1025,7 +1025,8 @@ async function processPdf(file) {
   // estratti come item separati con un piccolo gap che scambiamo per
   // gutter di colonna. Fonderli PRIMA della column detection elimina
   // il falso positivo alla radice.
-  const MERGE_THRESHOLD = 80; // pt — fonde frammenti placeholder senza toccare il gutter colonna
+  // Soglia modulata: 40pt cattura i frammenti ma NON il gutter colonna (50pt+)
+  const MERGE_THRESHOLD = 40; // pt
   Object.values(roughMap).forEach(line => {
     if (line.items.length < 2) return;
     const merged = [Object.assign({}, line.items[0])];
@@ -1059,7 +1060,7 @@ async function processPdf(file) {
   Object.keys(pageRoughLines).forEach(p => {
     const pn  = parseInt(p);
     const pW  = pageWidths[pn] || 595;
-    const minGap = Math.max(100, pW * 0.06); // SOGLIA: 100pt — buffer oltre il merge, sotto il gutter
+    const minGap = Math.max(50, pW * 0.04); // SOGLIA: 50pt — sopra il merge, sotto il gutter colonna
 
     const rightStartXs = [];
     pageRoughLines[pn].forEach(line => {
