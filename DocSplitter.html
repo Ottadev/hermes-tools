@@ -1043,56 +1043,15 @@ async function processPdf(file) {
     line.items = merged;
   });
 
-  // ── Phase 2: detect column split per page via within-line gaps ──
-  // Root cause of the original bug: after rough grouping, items from both
-  // columns share the same line bucket. Looking at line-start X only ever
-  // returned the LEFT column start, so the right column was never found.
-  // Fix: scan each rough line for large horizontal gaps between consecutive
-  // items. A gap ≥ threshold that lands in the right 60 % of the page is
-  // a reliable inter-column gutter signal.
-  const pageRoughLines = {};
-  Object.values(roughMap).forEach(l => {
-    if (!pageRoughLines[l.page]) pageRoughLines[l.page] = [];
-    pageRoughLines[l.page].push(l);
-  });
-
+  // ── Phase 2: column split via soglia fissa X ──
+  // I PDF di configurazione Cisco hanno spesso tabelle senza gutter
+  // (celle adiacenti). La gap detection fallisce. Usiamo una soglia
+  // fissa: item oltre il 55% della pagina → colonna destra.
   const pageSplits = {};
-  Object.keys(pageRoughLines).forEach(p => {
-    const pn  = parseInt(p);
-    const pW  = pageWidths[pn] || 595;
-    const minGap = Math.max(50, pW * 0.04); // SOGLIA: 50pt — sopra il merge, sotto il gutter colonna
-
-    const rightStartXs = [];
-    pageRoughLines[pn].forEach(line => {
-      const items = line.items;
-      for (let i = 1; i < items.length; i++) {
-        const prev = items[i - 1];
-        const gap  = items[i].x - (prev.x + (prev.w || 0));
-        // Large gap AND item is in the right 60 % of the page
-        if (gap >= minGap && items[i].x > pW * 0.4) {
-          rightStartXs.push(items[i].x);
-        }
-      }
-    });
-
-    if (rightStartXs.length < 2) { pageSplits[pn] = null; return; }
-
-    rightStartXs.sort((a, b) => a - b);
-
-    // Remove outliers: keep only X values within ±80pt of the median.
-    // False positives (e.g. long indented code lines) can inject isolated
-    // low X values; filtering protects the split estimate from them.
-    const medRX  = rightStartXs[Math.floor(rightStartXs.length / 2)];
-    const filtRX = rightStartXs.filter(x => Math.abs(x - medRX) <= 80);
-    if (filtRX.length < 2) { pageSplits[pn] = null; return; }
-
-    // Use the MINIMUM of the filtered set: the leftmost consistent
-    // right-column start that was actually observed.
-    const splitX = filtRX[0];
-    if (splitX < pW * 0.3 || splitX > pW * 0.85) { pageSplits[pn] = null; return; }
-
-    // Senza margine negativo: split esattamente all'X rilevato
-    pageSplits[pn] = splitX;
+  Object.keys(pageWidths).forEach(p => {
+    const pn = parseInt(p);
+    const pW = pageWidths[pn] || 595;
+    pageSplits[pn] = pW * 0.55;
   });
 
   // ── Phase 3: column-aware line grouping ──
