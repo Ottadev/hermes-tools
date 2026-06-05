@@ -1278,6 +1278,7 @@ async function processPdf(file) {
       const exactPages = new Map();   // text → Set<page>
       const p2Pages = new Map();      // first 2 words (lower) → Set<page>
       const p1Pages = new Map();      // first word (lower) → Set<page>
+      const startPages = new Map();   // first 12 chars (lower) → Set<page>
 
       // Group lines by page first, to count each unique match once per page
       const pageGroups = new Map(); // page → [{text, p2, p1}, ...]
@@ -1288,7 +1289,8 @@ async function processPdf(file) {
         pageGroups.get(l.page).push({
           text: t,
           p2: t.split(/\s+/).slice(0, 2).join(' ').toLowerCase(),
-          p1: t.split(/\s+/)[0].toLowerCase()
+          p1: t.split(/\s+/)[0].toLowerCase(),
+          start: t.toLowerCase().substring(0, 12)
         });
       });
 
@@ -1296,7 +1298,8 @@ async function processPdf(file) {
         const seenExact = new Set();
         const seenP2 = new Set();
         const seenP1 = new Set();
-        items.forEach(({ text, p2, p1 }) => {
+        const seenStart = new Set();
+        items.forEach(({ text, p2, p1, start }) => {
           if (!seenExact.has(text)) {
             seenExact.add(text);
             if (!exactPages.has(text)) exactPages.set(text, new Set());
@@ -1312,11 +1315,17 @@ async function processPdf(file) {
             if (!p1Pages.has(p1)) p1Pages.set(p1, new Set());
             p1Pages.get(p1).add(page);
           }
+          // First 12 chars (handles missing-space gaps: "Solutions-" vs "Solutions")
+          if (start.length >= 6 && !seenStart.has(start)) {
+            seenStart.add(start);
+            if (!startPages.has(start)) startPages.set(start, new Set());
+            startPages.get(start).add(page);
+          }
         });
       });
 
       // Build removal set
-      const toRemove = new Set(); // contains exact texts __p2:prefix __p1:word
+      const toRemove = new Set(); // contains exact texts __p2:prefix __p1:word __start:chars
       exactPages.forEach((pages, text) => {
         if (pages.size >= THRESHOLD) toRemove.add(text);
       });
@@ -1325,6 +1334,9 @@ async function processPdf(file) {
       });
       p1Pages.forEach((pages, word) => {
         if (pages.size >= THRESHOLD) toRemove.add(`__p1:${word}`);
+      });
+      startPages.forEach((pages, s) => {
+        if (pages.size >= THRESHOLD) toRemove.add(`__st:${s}`);
       });
 
       if (toRemove.size > 0) {
@@ -1337,6 +1349,8 @@ async function processPdf(file) {
           if (p2.length >= 3 && toRemove.has(`__p2:${p2}`)) return false;
           const p1 = t.split(/\s+/)[0].toLowerCase();
           if (p1.length >= 3 && toRemove.has(`__p1:${p1}`)) return false;
+          const start = t.toLowerCase().substring(0, 12);
+          if (start.length >= 6 && toRemove.has(`__st:${start}`)) return false;
           return true;
         });
         const removed = before - lines.length;
