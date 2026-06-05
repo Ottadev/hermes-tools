@@ -1279,19 +1279,28 @@ async function processPdf(file) {
 // SECTION BUILDER
 // ─────────────────────────────────────────────
 function buildSections(blocks) {
-  // Raggruppa per titolo (logica PRD originale): tutto il contenuto
-  // sotto un titolo finche' non se ne incontra un altro viene
-  // raggruppato in un unico file. Annotations accodate per ultime.
+  // Raggruppa per titolo (logica PRD): ogni titolo bold O intestazione
+  // numerata (es. "4.4.2.1.1 CPE") avvia un nuovo file.
   const sections     = [];
   let curTitle       = null;
   let curTitleText   = null;
   let curContent     = [];
 
+  function isHeading(text) {
+    return /^\d+(\.\d+)+(\.\d+)?\s/.test(text.trim());
+  }
+
   blocks.forEach(block => {
+    // Annotations vengono accodate al contenuto corrente
     if (block.isAnnotation) {
       const t = block.text.trim();
       if (t) curContent.push(t);
-    } else if (block.isTitle) {
+      return;
+    }
+
+    // Titolo bold o intestazione numerata → split
+    const t = block.text.trim();
+    if (block.isTitle || (t && isHeading(t))) {
       if (curContent.length > 0) {
         sections.push({
           title     : curTitle,
@@ -1299,13 +1308,14 @@ function buildSections(blocks) {
           content   : curContent.join('\n\n')
         });
       }
-      curTitle     = block.text.trim();
-      curTitleText = (block.titleText || block.text).trim();
-      curContent   = [curTitle];
-    } else {
-      const t = block.text.trim();
-      if (t) curContent.push(t);
+      curTitle     = t;
+      curTitleText = (block.titleText || t);
+      curContent   = [t];
+      return;
     }
+
+    // Contenuto normale
+    if (t) curContent.push(t);
   });
 
   if (curContent.length > 0) {

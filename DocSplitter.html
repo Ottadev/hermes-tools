@@ -1282,18 +1282,28 @@ async function processPdf(file) {
 // SECTION BUILDER
 // ─────────────────────────────────────────────
 function buildSections(blocks) {
+  // Raggruppa per titolo: ogni titolo bold O intestazione numerata
+  // (es. "4.4.2.1.1 CPE") avvia un nuovo file.
   const sections     = [];
   let curTitle       = null;
   let curTitleText   = null;
   let curContent     = [];
 
+  function isHeading(text) {
+    return /^\d+(\.\d+)+(\.\d+)?\s/.test(text.trim());
+  }
+
   blocks.forEach(block => {
+    // Annotations vengono accodate al contenuto corrente
     if (block.isAnnotation) {
-      // Annotations never start a new section — they append to the current one.
       const t = block.text.trim();
       if (t) curContent.push(t);
-    } else if (block.isTitle) {
-      // Flush previous
+      return;
+    }
+
+    // Titolo bold o intestazione numerata → split
+    const t = block.text.trim();
+    if (block.isTitle || (t && isHeading(t))) {
       if (curContent.length > 0) {
         sections.push({
           title     : curTitle,
@@ -1301,16 +1311,16 @@ function buildSections(blocks) {
           content   : curContent.join('\n\n')
         });
       }
-      curTitle     = block.text.trim();
-      curTitleText = (block.titleText || block.text).trim();
-      curContent   = [block.text.trim()]; // title as first line of file
-    } else {
-      const t = block.text.trim();
-      if (t) curContent.push(t);
+      curTitle     = t;
+      curTitleText = (block.titleText || t);
+      curContent   = [t];
+      return;
     }
+
+    // Contenuto normale
+    if (t) curContent.push(t);
   });
 
-  // Flush last
   if (curContent.length > 0) {
     sections.push({
       title     : curTitle,
