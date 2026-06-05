@@ -21,6 +21,50 @@
       --muted:  #8a8578;
       --rule:   #d6cfc4;
       --card:   #ffffff;
+      /* Surface utilities */
+      --surface:      #f0ece6;
+      --hover-bg:     #fffdf9;
+      --drop-active:  #fff5f2;
+      --error-bg:     #fff5f2;
+      --error-border: #f5c4ba;
+      --error-text:   #a04030;
+      --card-intro-bg:    #fff5e6;
+      --card-intro-border:#f5ddb0;
+      --card-intro-color: #c47a1a;
+      --index-bg:      #f7f4ef;
+      --index-icon-bg: #eee9e2;
+      --index-desc:    #aba59e;
+      --spinner-bg:    #e0dbd4;
+      --pbar-bg:       #ede9e2;
+      /* Sidebar (always dark) */
+      --sidebar-bg:    #1a1a2e;
+      --sidebar-muted: #9b9690;
+    }
+
+    /* ── Dark theme ── */
+    [data-theme="dark"] {
+      --ink:    #e8e4de;
+      --paper:  #151520;
+      --accent: #d65a40;
+      --muted:  #7a756e;
+      --rule:   #2a2a40;
+      --card:   #1e1e30;
+      --surface:      #252540;
+      --hover-bg:     #1e1e30;
+      --drop-active:  #1e1e30;
+      --error-bg:     #2a1a20;
+      --error-border: #4a2a30;
+      --error-text:   #d06050;
+      --card-intro-bg:    #2a2510;
+      --card-intro-border:#4a4030;
+      --card-intro-color: #d4a040;
+      --index-bg:      #1a1a2e;
+      --index-icon-bg: #252540;
+      --index-desc:    #5e5e70;
+      --spinner-bg:    #3a3a50;
+      --pbar-bg:       #2a2a40;
+      --sidebar-bg:    #0e0e18;
+      --sidebar-muted: #6a6560;
     }
 
     * { box-sizing: border-box; }
@@ -45,8 +89,8 @@
 
     /* ── Sidebar ── */
     .sidebar {
-      background-color: var(--ink);
-      color: #e8e4de;
+      background-color: var(--sidebar-bg);
+      color: var(--sidebar-text, #e8e4de);
       padding: 2.5rem 2rem;
       display: flex;
       flex-direction: column;
@@ -81,7 +125,7 @@
 
     .sidebar-desc {
       font-size: 0.78rem;
-      color: #9b9690;
+      color: var(--sidebar-muted);
       line-height: 1.6;
     }
 
@@ -113,12 +157,12 @@
 
     .step-text {
       font-size: 0.75rem;
-      color: #9b9690;
+      color: var(--sidebar-muted);
       line-height: 1.5;
     }
 
     .step-text strong {
-      color: #e8e4de;
+      color: var(--sidebar-text, #e8e4de);
       font-weight: 500;
     }
 
@@ -128,7 +172,7 @@
       align-items: center;
       gap: 0.5rem;
       font-size: 0.7rem;
-      color: #5e5e78;
+      color: var(--sidebar-muted);
     }
 
     .privacy-dot {
@@ -159,7 +203,6 @@
       margin-bottom: 2.5rem;
     }
 
-    /* ── Drop Zone ── */
     .drop-zone {
       border: 2px dashed var(--rule);
       border-radius: 12px;
@@ -173,23 +216,24 @@
 
     .drop-zone:hover {
       border-color: var(--accent);
-      background: #fffdf9;
+      background: var(--hover-bg);
     }
 
     .drop-zone.drop-active {
       border-color: var(--accent);
-      background: #fff5f2;
+      background: var(--drop-active);
       transform: scale(1.005);
     }
 
     .drop-icon {
       width: 52px;
       height: 52px;
-      background: #f0ece6;
+      background: var(--surface);
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
       margin: 0 auto 1rem;
     }
 
@@ -219,7 +263,7 @@
 
     .badge {
       padding: 0.2rem 0.7rem;
-      background: #f0ece6;
+      background: var(--surface);
       color: var(--muted);
       font-size: 0.7rem;
       font-weight: 700;
@@ -247,7 +291,7 @@
     .spinner {
       width: 18px;
       height: 18px;
-      border: 2px solid #e0dbd4;
+      border: 2px solid var(--spinner-bg);
       border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
@@ -263,7 +307,7 @@
     }
 
     .progress-track {
-      background: #ede9e2;
+      background: var(--pbar-bg);
       border-radius: 100px;
       height: 4px;
       overflow: hidden;
@@ -279,8 +323,8 @@
 
     /* ── Error ── */
     .error-card {
-      background: #fff5f2;
-      border: 1px solid #f5c4ba;
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
       border-radius: 10px;
       padding: 1rem 1.25rem;
       margin-top: 1.25rem;
@@ -303,7 +347,7 @@
 
     .error-msg {
       font-size: 0.78rem;
-      color: #a04030;
+      color: var(--error-text);
       margin-top: 0.15rem;
     }
 
@@ -415,13 +459,13 @@
     }
 
     .card-num-intro {
-      background: #fff5e6;
-      color: #c47a1a;
-      border: 1px solid #f5ddb0;
+      background: var(--card-intro-bg);
+      color: var(--card-intro-color);
+      border: 1px solid var(--card-intro-border);
     }
 
     .card-num-section {
-      background: #f0ece6;
+      background: var(--surface);
       color: var(--muted);
       border: 1px solid var(--rule);
     }
@@ -435,7 +479,7 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.7rem;
       color: var(--accent);
-      background: #fff5f2;
+      background: var(--drop-active);
       padding: 0.15rem 0.5rem;
       border-radius: 4px;
       display: inline-block;
@@ -462,7 +506,7 @@
     .card-intro-label {
       font-size: 0.8rem;
       font-weight: 600;
-      color: #c47a1a;
+      color: var(--card-intro-color);
       margin-bottom: 0.25rem;
     }
 
@@ -477,7 +521,7 @@
 
     /* ── Index card ── */
     .index-card {
-      background: #f7f4ef;
+      background: var(--index-bg);
       border: 1px dashed var(--rule);
       border-radius: 10px;
       padding: 0.875rem 1.25rem;
@@ -490,7 +534,7 @@
     .index-icon {
       width: 34px;
       height: 34px;
-      background: #eee9e2;
+      background: var(--index-icon-bg);
       border-radius: 7px;
       display: flex;
       align-items: center;
@@ -506,7 +550,7 @@
 
     .index-desc {
       font-size: 0.72rem;
-      color: #aba59e;
+      color: var(--index-desc);
       margin-top: 0.1rem;
     }
 
@@ -535,8 +579,8 @@
     </div>
 
     <p class="sidebar-desc">
-      Divide automaticamente un documento PDF o DOCX in più file <span class="mono" style="color:#c84b31;font-size:0.75rem">.txt</span>
-      separati, usando i titoli in <strong style="color:#e8e4de">grassetto</strong> come separatori.
+      Divide automaticamente un documento PDF o DOCX in più file <span class="mono" style="color:var(--accent);font-size:0.75rem">.txt</span>
+      separati, usando i titoli in <strong style="color:var(--sidebar-text, #e8e4de)">grassetto</strong> come separatori.
     </p>
 
     <hr class="sidebar-rule">
@@ -564,6 +608,19 @@
       <div class="privacy-dot"></div>
       Elaborazione 100% locale — nessun dato lascia il browser
     </div>
+
+    <!-- ── Dark mode toggle ── -->
+    <div style="display:flex;align-items:center;gap:0.625rem;padding-top:0.25rem;border-top:1px solid #2e2e45;margin-top:0.25rem">
+      <svg width="14" height="14" fill="none" stroke="var(--sidebar-muted)" viewBox="0 0 24 24" stroke-width="2" style="flex-shrink:0">
+        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+      </svg>
+      <span style="font-size:0.7rem;color:var(--sidebar-muted);flex:1">Tema scuro</span>
+      <label style="position:relative;display:inline-block;width:32px;height:18px;cursor:pointer">
+        <input type="checkbox" id="themeToggle" style="opacity:0;width:0;height:0">
+        <span style="position:absolute;inset:0;background:var(--sidebar-muted);border-radius:100px;transition:0.2s"></span>
+        <span id="themeKnob" style="position:absolute;left:2px;top:2px;width:14px;height:14px;background:#6a6a85;border-radius:50%;transition:0.2s"></span>
+      </label>
+    </div>
   </aside>
 
   <!-- ════ MAIN ════ -->
@@ -575,7 +632,7 @@
     <div id="dropZone" class="drop-zone">
       <input type="file" id="fileInput" accept=".pdf,.docx" style="display:none">
       <div class="drop-icon">
-        <svg width="24" height="24" fill="none" stroke="#8a8578" viewBox="0 0 24 24">
+        <svg width="24" height="24" fill="none" stroke="var(--muted)" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
         </svg>
@@ -640,7 +697,7 @@
       <!-- Index file indicator -->
       <div class="index-card">
         <div class="index-icon">
-          <svg width="15" height="15" fill="none" stroke="#8a8578" viewBox="0 0 24 24">
+          <svg width="15" height="15" fill="none" stroke="var(--muted)" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M4 6h16M4 10h16M4 14h10"/>
           </svg>
@@ -663,6 +720,30 @@
 // ─────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── Theme persistence ──
+(function initTheme() {
+  const saved = localStorage.getItem('docsplitter-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (saved === 'dark' || (!saved && prefersDark)) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const cb = document.getElementById('themeToggle');
+    if (cb) cb.checked = true;
+  }
+})();
+
+document.addEventListener('change', function(e) {
+  if (e.target.id === 'themeToggle') {
+    const dark = e.target.checked;
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
+    localStorage.setItem('docsplitter-theme', dark ? 'dark' : 'light');
+    const knob = document.getElementById('themeKnob');
+    if (knob) {
+      knob.style.left = dark ? '16px' : '2px';
+      knob.style.background = dark ? '#d65a40' : '#6a6a85';
+    }
+  }
+});
 
 // ─────────────────────────────────────────────
 // STATE
@@ -806,9 +887,12 @@ async function handleFile(file) {
     setStatus('Unione sezioni brevi…', 95);
     const sections = mergeShortSections(rawSections);
 
+    setStatus('Rimozione righe ripetute…', 97);
+    const cleaned = filterRepeatedContent(sections);
+
     setStatus('Completato!', 100);
     await sleep(350);
-    showPreview(sections);
+    showPreview(cleaned);
 
   } catch (err) {
     console.error(err);
@@ -1141,7 +1225,7 @@ async function processPdf(file) {
     lineMap[key].items.push(item);
   });
 
-  const lines = Object.values(lineMap).sort((a, b) => {
+  let lines = Object.values(lineMap).sort((a, b) => {
     if (a.page !== b.page) return a.page - b.page;
     return b.y - a.y; // visually top → bottom
   });
@@ -1170,6 +1254,122 @@ async function processPdf(file) {
     line.firstIsBold = line.items.length > 0 && isBoldItem(line.items[0]);
     line.boldRatio   = totalCh ? boldCh / totalCh : 0;
   });
+
+  // ── Phase: Filter repeated page-level content (headers/footers) ──
+  // Examines EVERY line on every page. A line is considered "page furniture"
+  // (header/footer) and removed if:
+  //   a) Its exact text appears on ≥75% of pages, OR
+  //   b) Its first-2-words prefix appears on ≥75% of pages, OR
+  //   c) Its first word appears on ≥75% of pages.
+  //
+  // By scanning ALL lines (not just top/bottom), we catch headers AND
+  // footers regardless of layout. The 75% threshold prevents false
+  // positives on legitimate content.
+  if (lines.length > 0) {
+    const totalPages = new Set(lines.map(l => l.page)).size;
+    if (totalPages >= 3) {
+      const THRESHOLD = Math.max(3, Math.ceil(totalPages * 0.75));
+      const THRESHOLD_P1 = Math.max(3, Math.ceil(totalPages * 0.60)); // lower for first-word (catches "Solutions" quando e' ultima parola su alcune pagine)
+
+      // Normalize text: strip NBSP, zero-width chars, normalize whitespace
+      const norm = s => s.replace(/[\u00A0\u2000-\u200F\u2028-\u202F\uFEFF]/g, ' ')
+                         .replace(/\s+/g, ' ').trim()
+                         .replace(/^[\s\-–—.,:;!?'"()]+/, '')   // strip leading punctuation
+                         .replace(/[\s\-–—.,:;!?'"()]+$/, '');  // strip trailing punctuation
+
+      // Count how many pages each text/prefix appears on
+      const exactPages = new Map();   // text → Set<page>
+      const p2Pages = new Map();      // first 2 words (lower) → Set<page>
+      const p1Pages = new Map();      // first word (lower) → Set<page>
+      const startPages = new Map();   // first 12 chars (lower) → Set<page>
+
+      // Group lines by page first, to count each unique match once per page
+      const pageGroups = new Map(); // page → [{text, p2, p1}, ...]
+      lines.forEach(l => {
+        const t = norm(l.text);
+        if (!t || t.length < 2) return;
+        if (!pageGroups.has(l.page)) pageGroups.set(l.page, []);
+        pageGroups.get(l.page).push({
+          text: t,
+          p2: t.split(/\s+/).slice(0, 2).join(' ').toLowerCase(),
+          p1: t.split(/\s+/)[0].toLowerCase().replace(/[\s\-–—.,:;!?'"()]+$/g, ''),
+          start: t.toLowerCase().substring(0, 12)
+        });
+      });
+
+      pageGroups.forEach((items, page) => {
+        const seenExact = new Set();
+        const seenP2 = new Set();
+        const seenP1 = new Set();
+        const seenStart = new Set();
+        items.forEach(({ text, p2, p1, start }) => {
+          if (!seenExact.has(text)) {
+            seenExact.add(text);
+            if (!exactPages.has(text)) exactPages.set(text, new Set());
+            exactPages.get(text).add(page);
+          }
+          if (p2.length >= 3 && !seenP2.has(p2)) {
+            seenP2.add(p2);
+            if (!p2Pages.has(p2)) p2Pages.set(p2, new Set());
+            p2Pages.get(p2).add(page);
+          }
+          if (p1.length >= 3 && !seenP1.has(p1)) {
+            seenP1.add(p1);
+            if (!p1Pages.has(p1)) p1Pages.set(p1, new Set());
+            p1Pages.get(p1).add(page);
+          }
+          // First 12 chars (handles missing-space gaps: "Solutions-" vs "Solutions")
+          if (start.length >= 6 && !seenStart.has(start)) {
+            seenStart.add(start);
+            if (!startPages.has(start)) startPages.set(start, new Set());
+            startPages.get(start).add(page);
+          }
+        });
+      });
+
+      // Build removal set
+      const toRemove = new Set(); // contains exact texts __p2:prefix __p1:word __start:chars
+      exactPages.forEach((pages, text) => {
+        if (pages.size >= THRESHOLD) toRemove.add(text);
+      });
+      p2Pages.forEach((pages, prefix) => {
+        if (pages.size >= THRESHOLD) toRemove.add(`__p2:${prefix}`);
+      });
+      p1Pages.forEach((pages, word) => {
+        if (pages.size >= THRESHOLD_P1) toRemove.add(`__p1:${word}`);
+      });
+      startPages.forEach((pages, s) => {
+        if (pages.size >= THRESHOLD_P1) toRemove.add(`__st:${s}`);
+      });
+
+      if (toRemove.size > 0) {
+        const before = lines.length;
+
+        // DEBUG: check if "solutions" is detected
+        const solPages = p1Pages.has('solutions') ? p1Pages.get('solutions').size : 0;
+
+        lines = lines.filter(l => {
+          const t = norm(l.text);
+          if (!t) return true;
+          if (toRemove.has(t)) return false;
+          const p2 = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
+          if (p2.length >= 3 && toRemove.has(`__p2:${p2}`)) return false;
+          const p1 = t.split(/\s+/)[0].toLowerCase().replace(/[\s\-–—.,:;!?'"()]+$/g, '');
+          if (p1.length >= 3 && toRemove.has(`__p1:${p1}`)) return false;
+          const start = t.toLowerCase().substring(0, 12);
+          if (start.length >= 6 && toRemove.has(`__st:${start}`)) return false;
+          return true;
+        });
+        const removed = before - lines.length;
+        if (removed > 0) {
+          console.log(`[filterHeaders] rimosse ${removed} righe (${totalPages} pagine, ${toRemove.size} pattern)`);
+        }
+        if (solPages > 0 && solPages < THRESHOLD_P1) {
+          console.log(`[filterHeaders] ATTENZIONE: 'solutions' trovato solo su ${solPages}/${totalPages} pagine (soglia p1: ${THRESHOLD_P1})`);
+        }
+      }
+    }
+  }
 
   const leftLines  = lines.filter(l => l.column === 'left');
   const rightLines = lines.filter(l => l.column === 'right');
@@ -1427,6 +1627,58 @@ function mergeShortSections(sections) {
   }
 
   return out;
+}
+
+// ─────────────────────────────────────────────
+// REPEATED CONTENT FILTER (post-section)
+// ─────────────────────────────────────────────
+/**
+ * Second-pass filter — rimuove da tutte le sezioni le righe di testo
+ * che appaiono identiche nell'80%+ delle sezioni. Serve per catturare
+ * header/footer che il filtro posizionale (pre-section) non ha preso
+ * a causa di variazioni di Y o wrapping del testo.
+ *
+ * La soglia alta (80%) evita falsi positivi con comandi Cisco comuni
+ * come "exit" o "!" che potrebbero apparire legittimamente in molte
+ * sezioni.
+ */
+function filterRepeatedContent(sections) {
+  if (sections.length < 3) return sections;
+
+  // Conta in quante sezioni appare ogni riga (una volta per sezione)
+  const lineFreq = new Map();
+  sections.forEach(s => {
+    const seen = new Set();
+    s.content.split('\n').forEach(line => {
+      const t = line.trim();
+      if (!t || t.length < 3) return;
+      if (seen.has(t)) return;
+      seen.add(t);
+      lineFreq.set(t, (lineFreq.get(t) || 0) + 1);
+    });
+  });
+
+  const threshold = Math.ceil(sections.length * 0.6);
+  const toRemove = new Set(
+    [...lineFreq.entries()]
+      .filter(([_, count]) => count >= threshold)
+      .map(([line]) => line)
+  );
+
+  if (toRemove.size === 0) return sections;
+
+  const linesBefore = sections.reduce((sum, s) => sum + s.content.split('\n').length, 0);
+
+  const result = sections.map(s => {
+    const lines = s.content.split('\n');
+    const filtered = lines.filter(line => !toRemove.has(line.trim()));
+    return { ...s, content: filtered.join('\n') };
+  });
+
+  const linesAfter = result.reduce((sum, s) => sum + s.content.split('\n').length, 0);
+  console.log(`[filterRepeatedContent] rimosse ${linesBefore - linesAfter} righe (${toRemove.size} pattern unici) da ${sections.length} sezioni`);
+
+  return result;
 }
 
 // ─────────────────────────────────────────────

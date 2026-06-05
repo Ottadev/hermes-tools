@@ -5,7 +5,7 @@
 **Versione:** 1.5
 **Stato:** Stabile
 **Creato:** 05/06/2026
-**Ultimo aggiornamento:** 05/06/2026
+**Ultimo aggiornamento:** 09/06/2026
 
 ---
 
@@ -248,8 +248,9 @@ Per ogni sezione numerata, determina se ha figli controllando se esiste un'altra
 
 | Versione | Data | Modifiche |
 |---|---|---|
-| **1.5** | 05/06/2026 | Sostituito `sectionEndIdx` Y-based con `mergeBlocks` (merge ordinato). Column detection a unique-Y cluster. `isHeading()` in `buildSections`. `sameGroup` depth-aware con `parseNumericPrefix`. Gerarchia cartelle/file reali in `assignFileNames`. |
-| **1.4** | 05/06/2026 | Checkpoint iniziale (DocSplitter v6): pre-merge + gap detection + fallback |
+| **1.5 (v8)** | 09/06/2026 | Aggiunto filtro header/footer automatico: 4 strategie di matching (testo esatto, prime 2 parole, prima parola, primi 12 caratteri). Soglia doppia: 75% per exact/p2, 60% per p1/start. Normalizzazione Unicode (NBSP, zero-width space, punteggiatura iniziale/finale). Debug visibile in console. |
+| **1.4** | 05/06/2026 | Sostituito `sectionEndIdx` Y-based con `mergeBlocks` (merge ordinato). Column detection a unique-Y cluster. `isHeading()` in `buildSections`. `sameGroup` depth-aware. Gerarchia cartelle/file. Tema dark. |
+| **1.0** | 05/06/2026 | Checkpoint iniziale (DocSplitter v6): pre-merge + gap detection + fallback |
 
 ---
 
