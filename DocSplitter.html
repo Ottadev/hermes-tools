@@ -1253,39 +1253,30 @@ async function processPdf(file) {
     });
   });
 
-  // ── Place each annotation block at the end of its logical section ──
-  // Strategy: find the last left block that belongs to the same "section"
-  // (between the nearest preceding title and the next title in the left stream).
-  const titlePositions = leftBlocks
-    .map((lb, i) => ({ i, page: lb.page, y: lb.y }))
-    .filter((_, i) => leftBlocks[i].isTitle);
-
-  function sectionEndIdx(rb) {
-    for (let k = 0; k < titlePositions.length; k++) {
-      const tp     = titlePositions[k];
-      const nextTp = titlePositions[k + 1];
-      const afterTitle  = rb.page > tp.page ||
-        (rb.page === tp.page && rb.y <= tp.y);
-      const beforeNext  = !nextTp || rb.page < nextTp.page ||
-        (rb.page === nextTp.page && rb.y > nextTp.y);
-      if (afterTitle && beforeNext) {
-        return nextTp ? nextTp.i - 1 : leftBlocks.length - 1;
+  // ── Merge left and right blocks in natural visual order ──
+  // Both streams are sorted top→bottom (same page, Y descending).
+  // A simple merge interleaves annotations exactly where they appear
+  // visually, without fragile Y-coordinate comparisons against titles.
+  function mergeBlocks(left, right) {
+    const result = [];
+    let li = 0, ri = 0;
+    while (li < left.length && ri < right.length) {
+      const l = left[li], r = right[ri];
+      // earlier page first; same page → higher Y (top of page) first
+      if (l.page < r.page || (l.page === r.page && l.y >= r.y)) {
+        result.push(l);
+        li++;
+      } else {
+        result.push(r);
+        ri++;
       }
     }
-    return leftBlocks.length - 1;
+    while (li < left.length) result.push(left[li++]);
+    while (ri < right.length) result.push(right[ri++]);
+    return result;
   }
 
-  const insertAfter = leftBlocks.map(() => []);
-  rightBlocks.forEach(rb => {
-    const idx = sectionEndIdx(rb);
-    insertAfter[Math.min(idx, insertAfter.length - 1)].push(rb);
-  });
-
-  const blocks = [];
-  leftBlocks.forEach((lb, i) => {
-    blocks.push(lb);
-    insertAfter[i].forEach(rb => blocks.push(rb));
-  });
+  const blocks = mergeBlocks(leftBlocks, rightBlocks);
 
   setStatus('Costruzione sezioni…', 88);
   return buildSections(blocks);
