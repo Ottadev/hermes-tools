@@ -1043,15 +1043,44 @@ async function processPdf(file) {
     line.items = merged;
   });
 
-  // ── Phase 2: column split via soglia fissa X ──
-  // I PDF di configurazione Cisco hanno spesso tabelle senza gutter
-  // (celle adiacenti). La gap detection fallisce. Usiamo una soglia
-  // fissa: item oltre il 55% della pagina → colonna destra.
+  // ── Phase 2: column split per page via gap detection (post-merge) ──
+  // Il pre-merge a 40pt ha gia fuso i frammenti di placeholder. I gap
+  // rimanenti >= 50pt sono gutter di colonna veri (non falsi placeholder).
+  const pageRoughLines = {};
+  Object.values(roughMap).forEach(l => {
+    if (!pageRoughLines[l.page]) pageRoughLines[l.page] = [];
+    pageRoughLines[l.page].push(l);
+  });
+
   const pageSplits = {};
-  Object.keys(pageWidths).forEach(p => {
-    const pn = parseInt(p);
-    const pW = pageWidths[pn] || 595;
-    pageSplits[pn] = pW * 0.55;
+  Object.keys(pageRoughLines).forEach(p => {
+    const pn  = parseInt(p);
+    const pW  = pageWidths[pn] || 595;
+    const minGap = 50; // sopra il merge (40pt), sotto il gutter colonna
+
+    const rightStartXs = [];
+    pageRoughLines[pn].forEach(line => {
+      const items = line.items;
+      for (let i = 1; i < items.length; i++) {
+        const prev = items[i - 1];
+        const gap  = items[i].x - (prev.x + (prev.w || 0));
+        if (gap >= minGap && items[i].x > pW * 0.4) {
+          rightStartXs.push(items[i].x);
+        }
+      }
+    });
+
+    if (rightStartXs.length < 2) { pageSplits[pn] = null; return; }
+
+    rightStartXs.sort((a, b) => a - b);
+    const medRX  = rightStartXs[Math.floor(rightStartXs.length / 2)];
+    const filtRX = rightStartXs.filter(x => Math.abs(x - medRX) <= 80);
+    if (filtRX.length < 2) { pageSplits[pn] = null; return; }
+
+    const splitX = filtRX[0];
+    if (splitX < pW * 0.3 || splitX > pW * 0.85) { pageSplits[pn] = null; return; }
+
+    pageSplits[pn] = splitX;
   });
 
   // ── Phase 3: column-aware line grouping ──
