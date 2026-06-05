@@ -1272,7 +1272,9 @@ async function processPdf(file) {
 
       // Normalize text: strip NBSP, zero-width chars, normalize whitespace
       const norm = s => s.replace(/[\u00A0\u2000-\u200F\u2028-\u202F\uFEFF]/g, ' ')
-                         .replace(/\s+/g, ' ').trim();
+                         .replace(/\s+/g, ' ').trim()
+                         .replace(/^[\s\-–—.,:;!?'"()]+/, '')   // strip leading punctuation
+                         .replace(/[\s\-–—.,:;!?'"()]+$/, '');  // strip trailing punctuation
 
       // Count how many pages each text/prefix appears on
       const exactPages = new Map();   // text → Set<page>
