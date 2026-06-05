@@ -1326,7 +1326,6 @@ function repairBrokenBrackets(text) {
     const closes = (merged.match(/>/g) || []).length;
 
     if (opens > closes) {
-      // Angolo ancora aperto — accumula
       pending = merged;
     } else {
       out.push(merged);
@@ -1336,6 +1335,68 @@ function repairBrokenBrackets(text) {
   if (pending) out.push(pending);
 
   return out.join('\n');
+}
+
+/**
+ * Rileva e sposta a fine sezione le righe di annotazione (note a piè
+ * di pagina nelle tabelle a destra). Cerca pattern "(1)", "! (1)" ecc.
+ * e accumula le righe di continuazione (minuscole, non comandi) fino
+ * al prossimo comando/separatore, poi le riposiziona in fondo.
+ */
+function extractAnnotations(text) {
+  const lines = text.split('\n');
+  const clean = [];
+  const notes = [];
+  let buf = '';
+  let collecting = false;
+
+  function flush() {
+    if (buf) { notes.push(buf); buf = ''; }
+    collecting = false;
+  }
+
+  for (const line of lines) {
+    const t = line.trim();
+
+    // Inizio annotazione: "(1)" o "! (1)"
+    if (/^!?\s*\(\d+\)/.test(t)) {
+      flush();
+      // Normalizza prefisso: toglie spazi extra, mantiene un solo "!"
+      buf = line.replace(/^!\s*/, '!').replace(/^!(\s*)/, '!$1');
+      collecting = true;
+      continue;
+    }
+
+    if (collecting) {
+      // Stop alla prima riga che non sia continuazione
+      if (/^!-/.test(t) || /^ip\s/.test(t) || /^!\s*$/.test(t) || /^➢/.test(t) || t === '') {
+        flush();
+        clean.push(line);
+        continue;
+      }
+      // Se la riga inizia con testo in minuscolo o parentesi, è continuazione
+      if (/^[a-z(]/.test(t)) {
+        buf += ' ' + t;
+        continue;
+      }
+      // Se c'è testo dopo separator come "!------ testo ----", estrailo
+      const trail = t.match(/!-{3,}.+?-{3,}\s+(.+)$/);
+      if (trail) {
+        buf += ' ' + trail[1];
+        continue;
+      }
+      // Altrimenti flush e tratta normalemente
+      flush();
+    }
+    clean.push(line);
+  }
+  flush();
+
+  if (notes.length) {
+    clean.push('');
+    notes.forEach(n => clean.push(n));
+  }
+  return clean.join('\n');
 }
 
 // ─────────────────────────────────────────────
@@ -1541,7 +1602,7 @@ async function generateZip(sections, origName) {
   // ── Content files (with folder structure) ──
   sections.forEach(s => zip.file(
     s.zipPath || s.fileName,
-    applyCommentPrefixes(repairBrokenBrackets(s.content))
+    applyCommentPrefixes(repairBrokenBrackets(extractAnnotations(s.content)))
   ));
 
   return zip.generateAsync({ type: 'blob' });
