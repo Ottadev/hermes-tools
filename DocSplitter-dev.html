@@ -1256,107 +1256,88 @@ async function processPdf(file) {
   });
 
   // ── Phase: Filter repeated page-level content (headers/footers) ──
-  // For each page, examine the top N lines (header area) and bottom M lines
-  // (footer area). Lines with the same text, same first-2-words, or same
-  // first word appearing on ≥75% of pages are removed as page furniture.
+  // Examines EVERY line on every page. A line is considered "page furniture"
+  // (header/footer) and removed if:
+  //   a) Its exact text appears on ≥75% of pages, OR
+  //   b) Its first-2-words prefix appears on ≥75% of pages, OR
+  //   c) Its first word appears on ≥75% of pages.
+  //
+  // By scanning ALL lines (not just top/bottom), we catch headers AND
+  // footers regardless of layout. The 75% threshold prevents false
+  // positives on legitimate content.
   if (lines.length > 0) {
     const totalPages = new Set(lines.map(l => l.page)).size;
     if (totalPages >= 3) {
       const THRESHOLD = Math.max(3, Math.ceil(totalPages * 0.75));
-      const TOP_N = 12;
-      const BOTTOM_M = 10;
 
-      // Helper: collect lines at the top of each page
-      function collectPageLines(lines, fromTop, maxCount) {
-        const map = new Map();
-        const iter = fromTop ? lines : [...lines].reverse();
-        iter.forEach(l => {
-          const t = l.text.trim();
-          if (!t) return;
-          if (!map.has(l.page)) map.set(l.page, []);
-          const arr = map.get(l.page);
-          if (arr.length < maxCount) arr.push(t);
+      // Count how many pages each text/prefix appears on
+      const exactPages = new Map();   // text → Set<page>
+      const p2Pages = new Map();      // first 2 words (lower) → Set<page>
+      const p1Pages = new Map();      // first word (lower) → Set<page>
+
+      // Group lines by page first, to count each unique match once per page
+      const pageGroups = new Map(); // page → [{text, p2, p1}, ...]
+      lines.forEach(l => {
+        const t = l.text.trim();
+        if (!t || t.length < 2) return;
+        if (!pageGroups.has(l.page)) pageGroups.set(l.page, []);
+        pageGroups.get(l.page).push({
+          text: t,
+          p2: t.split(/\s+/).slice(0, 2).join(' ').toLowerCase(),
+          p1: t.split(/\s+/)[0].toLowerCase()
         });
-        return map;
-      }
+      });
 
-      // Helper: count page frequency for exact match, 2-word prefix, 1-word prefix
-      function findRepeated(pageLines, threshold) {
-        const exactPages = new Map();  // text → Set<page>
-        const prefix2Pages = new Map(); // first-2-words → Set<page>
-        const prefix1Pages = new Map(); // first-word → Set<page>
-
-        pageLines.forEach((texts, page) => {
-          const seenExact = new Set();
-          const seenP2 = new Set();
-          const seenP1 = new Set();
-          texts.forEach(t => {
-            // Exact match
-            if (!seenExact.has(t)) {
-              seenExact.add(t);
-              if (!exactPages.has(t)) exactPages.set(t, new Set());
-              exactPages.get(t).add(page);
-            }
-            // First 2 words
-            const p2 = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
-            if (p2.length >= 3 && !seenP2.has(p2)) {
-              seenP2.add(p2);
-              if (!prefix2Pages.has(p2)) prefix2Pages.set(p2, new Set());
-              prefix2Pages.get(p2).add(page);
-            }
-            // First word (for variable-content headers like "Cod:" "Pag.:")
-            const p1 = t.split(/\s+/)[0].toLowerCase();
-            if (p1.length >= 3 && !seenP1.has(p1)) {
-              seenP1.add(p1);
-              if (!prefix1Pages.has(p1)) prefix1Pages.set(p1, new Set());
-              prefix1Pages.get(p1).add(page);
-            }
-          });
+      pageGroups.forEach((items, page) => {
+        const seenExact = new Set();
+        const seenP2 = new Set();
+        const seenP1 = new Set();
+        items.forEach(({ text, p2, p1 }) => {
+          if (!seenExact.has(text)) {
+            seenExact.add(text);
+            if (!exactPages.has(text)) exactPages.set(text, new Set());
+            exactPages.get(text).add(page);
+          }
+          if (p2.length >= 3 && !seenP2.has(p2)) {
+            seenP2.add(p2);
+            if (!p2Pages.has(p2)) p2Pages.set(p2, new Set());
+            p2Pages.get(p2).add(page);
+          }
+          if (p1.length >= 3 && !seenP1.has(p1)) {
+            seenP1.add(p1);
+            if (!p1Pages.has(p1)) p1Pages.set(p1, new Set());
+            p1Pages.get(p1).add(page);
+          }
         });
+      });
 
-        const toRemove = new Set();
-        exactPages.forEach((pages, text) => {
-          if (pages.size >= threshold) toRemove.add(text);
-        });
-        prefix2Pages.forEach((pages, prefix) => {
-          if (pages.size >= threshold) toRemove.add(`__p2:${prefix}`);
-        });
-        prefix1Pages.forEach((pages, word) => {
-          if (pages.size >= threshold) toRemove.add(`__p1:${word}`);
-        });
-        return toRemove;
-      }
+      // Build removal set
+      const toRemove = new Set(); // contains exact texts __p2:prefix __p1:word
+      exactPages.forEach((pages, text) => {
+        if (pages.size >= THRESHOLD) toRemove.add(text);
+      });
+      p2Pages.forEach((pages, prefix) => {
+        if (pages.size >= THRESHOLD) toRemove.add(`__p2:${prefix}`);
+      });
+      p1Pages.forEach((pages, word) => {
+        if (pages.size >= THRESHOLD) toRemove.add(`__p1:${word}`);
+      });
 
-      // Check TOP of pages (headers)
-      const topLines = collectPageLines(lines, true, TOP_N);
-      const topRemove = findRepeated(topLines, THRESHOLD);
-
-      // Check BOTTOM of pages (footers)
-      const bottomLines = collectPageLines(lines, false, BOTTOM_M);
-      const bottomRemove = findRepeated(bottomLines, THRESHOLD);
-
-      // Merge both removal sets
-      const allRemove = new Set([...topRemove, ...bottomRemove]);
-
-      // ── Apply the filter ──
-      if (allRemove.size > 0) {
+      if (toRemove.size > 0) {
         const before = lines.length;
         lines = lines.filter(l => {
           const t = l.text.trim();
           if (!t) return true;
-          // Exact match
-          if (allRemove.has(t)) return false;
-          // 2-word prefix match
+          if (toRemove.has(t)) return false;
           const p2 = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
-          if (p2.length >= 3 && allRemove.has(`__p2:${p2}`)) return false;
-          // 1-word prefix match
+          if (p2.length >= 3 && toRemove.has(`__p2:${p2}`)) return false;
           const p1 = t.split(/\s+/)[0].toLowerCase();
-          if (p1.length >= 3 && allRemove.has(`__p1:${p1}`)) return false;
+          if (p1.length >= 3 && toRemove.has(`__p1:${p1}`)) return false;
           return true;
         });
         const removed = before - lines.length;
         if (removed > 0) {
-          console.log(`[filterPageHeaders] rimosse ${removed} righe (${totalPages} pagine)`);
+          console.log(`[filterHeaders] rimosse ${removed} righe (${totalPages} pagine, ${toRemove.size} pattern)`);
         }
       }
     }
