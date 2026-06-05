@@ -1343,6 +1343,10 @@ async function processPdf(file) {
 
       if (toRemove.size > 0) {
         const before = lines.length;
+
+        // DEBUG: check if "solutions" is detected
+        const solPages = p1Pages.has('solutions') ? p1Pages.get('solutions').size : 0;
+
         lines = lines.filter(l => {
           const t = norm(l.text);
           if (!t) return true;
@@ -1358,6 +1362,9 @@ async function processPdf(file) {
         const removed = before - lines.length;
         if (removed > 0) {
           console.log(`[filterHeaders] rimosse ${removed} righe (${totalPages} pagine, ${toRemove.size} pattern)`);
+        }
+        if (solPages > 0 && solPages < THRESHOLD) {
+          console.log(`[filterHeaders] ATTENZIONE: 'solutions' trovato solo su ${solPages}/${totalPages} pagine (soglia: ${THRESHOLD})`);
         }
       }
     }
