@@ -658,7 +658,26 @@
 <script>
 'use strict';
 
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// CONFIGURAZIONE — modifica per adattare ai tuoi PDF
+// ═══════════════════════════════════════════════════════════════
+
+// Soglia split colonna destra (percentuale larghezza pagina).
+//   0  = auto-detect (default) — cerca gutter tra colonne
+//  45  = 45% — forza split a meta circa pagina (Cisco tabelle)
+// Imposta 45-50 se vedi annotazioni mescolate ai comandi.
+const COLUMN_SPLIT_PCT = 0;
+
+// Soglia pre-merge (pt). Fonde item ravvicinati sulla stessa riga.
+// Più alto = più frammenti uniti ma rischio di fondere colonne.
+const MERGE_THRESHOLD = 40;
+
+// Soglia detection gutter (pt). Gap minimo per riconoscere colonna.
+// Più basso = più sensibile ma più falsi positivi.
+const MIN_GAP = 50;
+// ═══════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────
 // SETUP
 // ─────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -1025,8 +1044,7 @@ async function processPdf(file) {
   // estratti come item separati con un piccolo gap che scambiamo per
   // gutter di colonna. Fonderli PRIMA della column detection elimina
   // il falso positivo alla radice.
-  // Soglia modulata: 40pt cattura i frammenti ma NON il gutter colonna (50pt+)
-  const MERGE_THRESHOLD = 40; // pt
+  // Soglia modulata: cattura i frammenti ma NON il gutter colonna
   Object.values(roughMap).forEach(line => {
     if (line.items.length < 2) return;
     const merged = [Object.assign({}, line.items[0])];
@@ -1044,19 +1062,28 @@ async function processPdf(file) {
   });
 
   // ── Phase 2: column split per page via gap detection (post-merge) ──
-  // Il pre-merge a 40pt ha gia fuso i frammenti di placeholder. I gap
-  // rimanenti >= 50pt sono gutter di colonna veri (non falsi placeholder).
+  // Il pre-merge ha gia fuso i frammenti di placeholder.
+  // I gap rimanenti >= MIN_GAP sono gutter di colonna veri.
+  const pageSplits = {};
+
+  // Se COLUMN_SPLIT_PCT > 0, salta la gap detection e usa soglia fissa
+  if (COLUMN_SPLIT_PCT > 0) {
+    Object.keys(pageWidths).forEach(p => {
+      const pn = parseInt(p);
+      const pW = pageWidths[pn] || 595;
+      pageSplits[pn] = pW * (COLUMN_SPLIT_PCT / 100);
+    });
+  } else {
   const pageRoughLines = {};
   Object.values(roughMap).forEach(l => {
     if (!pageRoughLines[l.page]) pageRoughLines[l.page] = [];
     pageRoughLines[l.page].push(l);
   });
 
-  const pageSplits = {};
   Object.keys(pageRoughLines).forEach(p => {
     const pn  = parseInt(p);
     const pW  = pageWidths[pn] || 595;
-    const minGap = 50; // sopra il merge (40pt), sotto il gutter colonna
+    const minGap = MIN_GAP; // dalla configurazione globale
 
     const rightStartXs = [];
     pageRoughLines[pn].forEach(line => {
@@ -1093,6 +1120,7 @@ async function processPdf(file) {
     const hasRight = allItems.some(item => item.page === pn && item.x > pW * 0.50);
     if (hasRight) pageSplits[pn] = pW * 0.50;
   }
+  } // fine else (COLUMN_SPLIT_PCT === 0)
 
   // ── Phase 3: column-aware line grouping ──
   // Each item is classified BEFORE entering the line bucket.
