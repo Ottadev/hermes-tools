@@ -1085,13 +1085,13 @@ async function processPdf(file) {
 
   // ── Fallback: pagine senza gutter ma con item a destra (tabelle) ──
   // Se la gap detection non ha trovato colonne ma ci sono item oltre
-  // il 55% della pagina, usa un threshold fisso per quella pagina.
+  // il 50% della pagina, usa threshold fisso (tabelle senza gutter).
   for (const p in pageSplits) {
     if (pageSplits[p] !== null) continue;
     const pn = parseInt(p);
     const pW = pageWidths[pn] || 595;
-    const hasRight = allItems.some(item => item.page === pn && item.x > pW * 0.55);
-    if (hasRight) pageSplits[pn] = pW * 0.55;
+    const hasRight = allItems.some(item => item.page === pn && item.x > pW * 0.50);
+    if (hasRight) pageSplits[pn] = pW * 0.50;
   }
 
   // ── Phase 3: column-aware line grouping ──
