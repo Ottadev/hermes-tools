@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocSplitter</title>
+
+  <!-- CDN Libraries -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --ink:    #1a1a2e;
+      --paper:  #f5f0e8;
+      --accent: #c84b31;
+      --muted:  #8a8578;
+      --rule:   #d6cfc4;
+      --card:   #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background-color: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    code, .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background-color: var(--ink);
+      color: #e8e4de;
+      padding: 2.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .sidebar-logo-icon {
+      width: 36px;
+      height: 36px;
+      background-color: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo-text {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar-desc {
+      font-size: 0.78rem;
+      color: #9b9690;
+      line-height: 1.6;
+    }
+
+    .sidebar-rule {
+      border: none;
+      border-top: 1px solid #2e2e45;
+    }
+
+    .sidebar-step {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid #3a3a55;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .step-text {
+      font-size: 0.75rem;
+      color: #9b9690;
+      line-height: 1.5;
+    }
+
+    .step-text strong {
+      color: #e8e4de;
+      font-weight: 500;
+    }
+
+    .sidebar-privacy {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.7rem;
+      color: #5e5e78;
+    }
+
+    .privacy-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #3a8a5c;
+      flex-shrink: 0;
+    }
+
+    /* ── Main area ── */
+    .main {
+      padding: 3rem 3.5rem;
+      max-width: 720px;
+    }
+
+    .main-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.4rem;
+      color: var(--ink);
+    }
+
+    .main-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 2.5rem;
+    }
+
+    /* ── Drop Zone ── */
+    .drop-zone {
+      border: 2px dashed var(--rule);
+      border-radius: 12px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: var(--card);
+      position: relative;
+    }
+
+    .drop-zone:hover {
+      border-color: var(--accent);
+      background: #fffdf9;
+    }
+
+    .drop-zone.drop-active {
+      border-color: var(--accent);
+      background: #fff5f2;
+      transform: scale(1.005);
+    }
+
+    .drop-icon {
+      width: 52px;
+      height: 52px;
+      background: #f0ece6;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+    }
+
+    .drop-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+    }
+
+    .drop-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .drop-sub span {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .badge-row {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .badge {
+      padding: 0.2rem 0.7rem;
+      background: #f0ece6;
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 700;
+      border-radius: 100px;
+      letter-spacing: 0.05em;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Status ── */
+    .status-card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-top: 1.25rem;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #e0dbd4;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-msg {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .progress-track {
+      background: #ede9e2;
+      border-radius: 100px;
+      height: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      background: var(--accent);
+      height: 100%;
+      border-radius: 100px;
+      transition: width 0.5s ease-out;
+      width: 0%;
+    }
+
+    /* ── Error ── */
+    .error-card {
+      background: #fff5f2;
+      border: 1px solid #f5c4ba;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-top: 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .error-icon {
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .error-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .error-msg {
+      font-size: 0.78rem;
+      color: #a04030;
+      margin-top: 0.15rem;
+    }
+
+    /* ── Preview ── */
+    .preview-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin: 2rem 0 1rem;
+      gap: 1rem;
+    }
+
+    .preview-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .preview-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .btn-ghost {
+      padding: 0.45rem 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--muted);
+      background: var(--card);
+      border: 1px solid var(--rule);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+
+    .btn-ghost:hover {
+      color: var(--ink);
+      border-color: #b5afa8;
+    }
+
+    .btn-primary {
+      padding: 0.45rem 1rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: white;
+      background: var(--accent);
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: inherit;
+    }
+
+    .btn-primary:hover {
+      background: #b03f28;
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ── Cards ── */
+    .cards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+    }
+
+    .result-card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      opacity: 0;
+      animation: slideUp 0.35s ease forwards;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-num {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    .card-num-intro {
+      background: #fff5e6;
+      color: #c47a1a;
+      border: 1px solid #f5ddb0;
+    }
+
+    .card-num-section {
+      background: #f0ece6;
+      color: var(--muted);
+      border: 1px solid var(--rule);
+    }
+
+    .card-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .card-filename {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      background: #fff5f2;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 0.4rem;
+    }
+
+    .card-meta {
+      display: inline-block;
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-left: 0.5rem;
+    }
+
+    .card-section-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 0.25rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-intro-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #c47a1a;
+      margin-bottom: 0.25rem;
+    }
+
+    .card-excerpt {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ── Index card ── */
+    .index-card {
+      background: #f7f4ef;
+      border: 1px dashed var(--rule);
+      border-radius: 10px;
+      padding: 0.875rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      margin-top: 0.625rem;
+    }
+
+    .index-icon {
+      width: 34px;
+      height: 34px;
+      background: #eee9e2;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .index-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .index-desc {
+      font-size: 0.72rem;
+      color: #aba59e;
+      margin-top: 0.1rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .main { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ════ SIDEBAR ════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">
+        <svg width="18" height="18" fill="none" stroke="white" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <span class="sidebar-logo-text">DocSplitter</span>
+    </div>
+
+    <p class="sidebar-desc">
+      Divide automaticamente un documento PDF o DOCX in più file <span class="mono" style="color:#c84b31;font-size:0.75rem">.txt</span>
+      separati, usando i titoli in <strong style="color:#e8e4de">grassetto</strong> come separatori.
+    </p>
+
+    <hr class="sidebar-rule">
+
+    <div style="display:flex;flex-direction:column;gap:1rem">
+      <div class="sidebar-step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Carica</strong> un file .pdf o .docx tramite drag&amp;drop o clic.</div>
+      </div>
+      <div class="sidebar-step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Analisi</strong> automatica dei grassetti: ogni testo in bold all'inizio di un paragrafo diventa un nuovo file.</div>
+      </div>
+      <div class="sidebar-step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Anteprima</strong> dei file che verranno generati, con nome e contenuto.</div>
+      </div>
+      <div class="sidebar-step">
+        <div class="step-num">4</div>
+        <div class="step-text"><strong>Scarica</strong> lo ZIP con tutti i file <span class="mono" style="font-size:0.7rem">.txt</span> e un indice riassuntivo.</div>
+      </div>
+    </div>
+
+    <div class="sidebar-privacy">
+      <div class="privacy-dot"></div>
+      Elaborazione 100% locale — nessun dato lascia il browser
+    </div>
+  </aside>
+
+  <!-- ════ MAIN ════ -->
+  <main class="main">
+    <h1 class="main-title">Dividi il documento</h1>
+    <p class="main-sub">Carica un PDF o DOCX — verrà suddiviso in base ai titoli in grassetto</p>
+
+    <!-- Drop Zone -->
+    <div id="dropZone" class="drop-zone">
+      <input type="file" id="fileInput" accept=".pdf,.docx" style="display:none">
+      <div class="drop-icon">
+        <svg width="24" height="24" fill="none" stroke="#8a8578" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+      </div>
+      <p class="drop-title">Trascina qui il documento</p>
+      <p class="drop-sub">oppure <span>clicca per sfogliare</span></p>
+      <div class="badge-row">
+        <span class="badge">PDF</span>
+        <span class="badge">DOCX</span>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="statusSection" style="display:none">
+      <div class="status-card">
+        <div class="status-row">
+          <div class="spinner"></div>
+          <span id="statusText" class="status-msg">Elaborazione…</span>
+        </div>
+        <div class="progress-track">
+          <div id="progressBar" class="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="errorSection" style="display:none">
+      <div class="error-card">
+        <svg class="error-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd"
+            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+            clip-rule="evenodd"/>
+        </svg>
+        <div>
+          <p class="error-title">Errore di elaborazione</p>
+          <p id="errorText" class="error-msg"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Results -->
+    <div id="previewSection" style="display:none">
+      <div class="preview-header">
+        <div>
+          <p class="preview-title">Anteprima Risultati</p>
+          <p id="previewSubtitle" class="preview-sub"></p>
+        </div>
+        <div class="btn-row">
+          <button id="resetBtn" class="btn-ghost">↩ Nuovo file</button>
+          <button id="downloadBtn" class="btn-primary">
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2"/>
+            </svg>
+            Scarica ZIP
+          </button>
+        </div>
+      </div>
+
+      <div id="previewCards" class="cards-list"></div>
+
+      <!-- Index file indicator -->
+      <div class="index-card">
+        <div class="index-icon">
+          <svg width="15" height="15" fill="none" stroke="#8a8578" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 6h16M4 10h16M4 14h10"/>
+          </svg>
+        </div>
+        <div>
+          <p class="index-name">INDICE.txt</p>
+          <p class="index-desc">Elenco riepilogativo di tutti i file generati, incluso nel pacchetto ZIP</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────
+// SETUP
+// ─────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let currentSections = [];
+let currentFileName  = '';
+
+// ─────────────────────────────────────────────
+// DOM
+// ─────────────────────────────────────────────
+const dropZone       = document.getElementById('dropZone');
+const fileInput      = document.getElementById('fileInput');
+const statusSection  = document.getElementById('statusSection');
+const statusText     = document.getElementById('statusText');
+const progressBar    = document.getElementById('progressBar');
+const errorSection   = document.getElementById('errorSection');
+const errorEl        = document.getElementById('errorText');
+const previewSection = document.getElementById('previewSection');
+const previewCards   = document.getElementById('previewCards');
+const previewSub     = document.getElementById('previewSubtitle');
+const downloadBtn    = document.getElementById('downloadBtn');
+const resetBtn       = document.getElementById('resetBtn');
+
+// ─────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────
+function setStatus(msg, pct) {
+  statusText.textContent  = msg;
+  progressBar.style.width = pct + '%';
+}
+
+function showStatus() {
+  statusSection .style.display = '';
+  errorSection  .style.display = 'none';
+  previewSection.style.display = 'none';
+}
+
+function hideStatus() {
+  statusSection.style.display = 'none';
+}
+
+function showError(msg) {
+  hideStatus();
+  errorEl.textContent = msg;
+  errorSection.style.display = '';
+}
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ─────────────────────────────────────────────
+// EVENTS
+// ─────────────────────────────────────────────
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drop-active');
+});
+
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('drop-active');
+});
+
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drop-active');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+resetBtn.addEventListener('click', () => {
+  previewSection.style.display = 'none';
+  errorSection  .style.display = 'none';
+  currentSections = [];
+  fileInput.value = '';
+  setStatus('', 0);
+});
+
+downloadBtn.addEventListener('click', async () => {
+  if (!currentSections.length) return;
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = 'Generazione…';
+  try {
+    const blob = await generateZip(currentSections, currentFileName);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = currentFileName.replace(/\.[^.]+$/, '') + '_split.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(err) {
+    showError('Errore nella creazione ZIP: ' + err.message);
+  } finally {
+    downloadBtn.disabled = false;
+    downloadBtn.innerHTML = `
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+          d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2"/>
+      </svg>
+      Scarica ZIP`;
+  }
+});
+
+// ─────────────────────────────────────────────
+// MAIN HANDLER
+// ─────────────────────────────────────────────
+async function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'pdf' && ext !== 'docx') {
+    showError('Formato non supportato. Carica un file PDF o DOCX.');
+    return;
+  }
+
+  currentFileName = file.name;
+  showStatus();
+  setStatus('Inizializzazione…', 5);
+
+  try {
+    const rawSections = ext === 'docx'
+      ? await processDocx(file)
+      : await processPdf(file);
+
+    if (!rawSections.length) {
+      showError('Nessuna sezione trovata. Assicurati che il documento contenga testo formattato in grassetto.');
+      return;
+    }
+
+    setStatus('Unione sezioni brevi…', 95);
+    const sections = mergeShortSections(rawSections);
+
+    setStatus('Completato!', 100);
+    await sleep(350);
+    showPreview(sections);
+
+  } catch (err) {
+    console.error(err);
+    showError('Errore durante l\'elaborazione: ' + err.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+// PREVIEW
+// ─────────────────────────────────────────────
+function showPreview(sections) {
+  hideStatus();
+  currentSections = assignFileNames(sections);
+
+  const titled = currentSections.filter(s => s.title).length;
+  const intro  = currentSections.filter(s => !s.title).length;
+  previewSub.textContent =
+    titled + ' sezione' + (titled !== 1 ? 'i' : '') + ' con titolo' +
+    (intro ? ' · 1 introduzione' : '') +
+    ' · "' + currentFileName + '"';
+
+  previewCards.innerHTML = '';
+  currentSections.forEach((s, i) => {
+    const card = buildCard(s, i);
+    previewCards.appendChild(card);
+  });
+
+  previewSection.style.display = '';
+}
+
+function buildCard(section, idx) {
+  const isIntro = !section.title;
+
+  // Badge number from filename
+  const numMatch = section.fileName.match(/^(\d+)/);
+  const badgeNum = numMatch ? numMatch[1] : String(idx).padStart(2,'0');
+
+  // Excerpt
+  const lines   = section.content.split('\n').filter(l => l.trim());
+  const start   = isIntro ? 0 : 1;
+  let excerpt   = lines.slice(start, start + 3).join(' ');
+  if (excerpt.length > 110) excerpt = excerpt.substring(0, 110) + '…';
+
+  const words = section.content.split(/\s+/).filter(Boolean).length;
+
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  card.style.animationDelay = (idx * 45) + 'ms';
+
+  const numClass = isIntro ? 'card-num card-num-intro' : 'card-num card-num-section';
+
+  card.innerHTML = `
+    <div class="${numClass}">${esc(badgeNum)}</div>
+    <div class="card-body">
+      <div>
+        <span class="card-filename">${esc(section.zipPath || section.fileName)}</span>
+        <span class="card-meta">${words} parole</span>
+      </div>
+      ${isIntro
+        ? `<p class="card-intro-label">Introduzione</p>`
+        : `<p class="card-section-title">${esc(section.titleText || section.title)}</p>`
+      }
+      <p class="card-excerpt">${esc(excerpt)}</p>
+    </div>`;
+
+  return card;
+}
+
+// ─────────────────────────────────────────────
+// DOCX PROCESSING
+// ─────────────────────────────────────────────
+async function processDocx(file) {
+  setStatus('Lettura file DOCX…', 15);
+  const buf = await file.arrayBuffer();
+
+  setStatus('Conversione in HTML con mammoth…', 35);
+  const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+
+  setStatus('Analisi paragrafi e grassetti…', 58);
+  const parser   = new DOMParser();
+  const htmlDoc  = parser.parseFromString(result.value, 'text/html');
+  const elements = htmlDoc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
+
+  const blocks = [];
+  elements.forEach(el => {
+    const text = el.textContent.trim();
+    if (!text) return;
+
+    const isHeading   = /^H[1-6]$/.test(el.tagName);
+    const isBoldStart = !isHeading && paragraphStartsWithBold(el);
+    const isTitle     = isHeading || isBoldStart;
+    const titleText   = isTitle
+      ? (isHeading ? text : extractLeadingBold(el))
+      : null;
+
+    blocks.push({ text, isTitle, titleText });
+  });
+
+  setStatus('Costruzione sezioni…', 78);
+  return buildSections(blocks);
+}
+
+function paragraphStartsWithBold(el) {
+  // Walk past leading whitespace-only text nodes
+  let child = el.firstChild;
+  while (child && child.nodeType === Node.TEXT_NODE && !child.textContent.trim()) {
+    child = child.nextSibling;
+  }
+  if (!child) return false;
+
+  if (child.nodeType === Node.ELEMENT_NODE) {
+    const tag = child.tagName.toLowerCase();
+    // Direct <strong> or <b>
+    if (tag === 'strong' || tag === 'b') return true;
+    // Nested: <em><strong>… or <span><b>…
+    const inner = child.querySelector('strong, b');
+    if (inner && child.textContent.trim() === inner.textContent.trim()) return true;
+  }
+
+  return false;
+}
+
+function extractLeadingBold(el) {
+  const boldEl = el.querySelector('strong, b');
+  if (!boldEl) return el.textContent.trim();
+
+  // Count chars before the bold element
+  let charsBefore = 0;
+  let found = false;
+  function walk(node) {
+    if (found || node === boldEl) { found = true; return; }
+    if (node.nodeType === Node.TEXT_NODE) charsBefore += node.textContent.length;
+    else node.childNodes.forEach(walk);
+  }
+  walk(el);
+
+  return charsBefore <= 2 ? boldEl.textContent.trim() : el.textContent.trim();
+}
+
+// ─────────────────────────────────────────────
+// PDF PROCESSING
+// ─────────────────────────────────────────────
+async function processPdf(file) {
+  setStatus('Caricamento PDF…', 8);
+  const buf    = await file.arrayBuffer();
+  const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+  const total  = pdfDoc.numPages;
+
+  setStatus(`Estrazione testo (${total} pagine)…`, 18);
+
+  const allItems   = [];
+  const pageWidths = {};
+
+  for (let p = 1; p <= total; p++) {
+    const page    = await pdfDoc.getPage(p);
+    const tc      = await page.getTextContent();
+    pageWidths[p] = page.getViewport({ scale: 1 }).width;
+
+    tc.items.forEach(item => {
+      if (!item.str || !item.str.trim()) return;
+      allItems.push({
+        str      : item.str,
+        x        : item.transform[4],
+        y        : item.transform[5],
+        w        : item.width  || 0,
+        height   : item.height || 0,
+        fontName : (item.fontName || '').toLowerCase(),
+        page     : p
+      });
+    });
+
+    setStatus(`Pagina ${p}/${total}…`, 18 + (p / total) * 36);
+  }
+
+  if (!allItems.length) {
+    throw new Error('Nessun testo estraibile. Il PDF potrebbe essere scansionato (solo immagini).');
+  }
+
+  setStatus('Analisi font e struttura tipografica…', 57);
+
+  // ── Font size statistics ──
+  const heights = allItems
+    .map(i => i.height)
+    .filter(h => h > 0)
+    .sort((a, b) => a - b);
+
+  const p50 = heights[Math.floor(heights.length * 0.50)] || 10;
+  const p75 = heights[Math.floor(heights.length * 0.75)] || 12;
+
+  function isBoldItem(item) {
+    // Primary: font name contains "bold"
+    if (item.fontName.includes('bold')) return true;
+    // Secondary: font weight encoded as "700" or higher in name
+    if (/[_\-,]700|[_\-,]800|[_\-,]900/.test(item.fontName)) return true;
+    // Fallback: significantly above 75th percentile in size
+    if (item.height > 0 && item.height > p75 * 1.35 && item.height > p50 * 1.4) return true;
+    return false;
+  }
+
+  // ── Phase 1: rough line grouping (no column awareness yet) ──
+  // We need to see which items sit side-by-side on the same Y level
+  // before we can find the inter-column gap.
+  const roughMap = Object.create(null);
+  allItems.forEach(item => {
+    const yr  = Math.round(item.y / 2) * 2;
+    const key = `${item.page}_${yr}`;
+    if (!roughMap[key]) roughMap[key] = { page: item.page, items: [] };
+    roughMap[key].items.push(item);
+  });
+  Object.values(roughMap).forEach(l => l.items.sort((a, b) => a.x - b.x));
+
+  // ── Pre-merge: fonde item ravvicinati sulla stessa riga grezza ──
+  // I placeholder PDF come "<INTERFACE>.<S-TAG-TAG>" vengono spesso
+  // estratti come item separati con un piccolo gap che scambiamo per
+  // gutter di colonna. Fonderli PRIMA della column detection elimina
+  // il falso positivo alla radice.
+  const MERGE_THRESHOLD = 80; // pt — fonde frammenti placeholder senza toccare il gutter colonna
+  Object.values(roughMap).forEach(line => {
+    if (line.items.length < 2) return;
+    const merged = [Object.assign({}, line.items[0])];
+    for (let i = 1; i < line.items.length; i++) {
+      const prev = merged[merged.length - 1];
+      const gap  = line.items[i].x - (prev.x + (prev.w || 0));
+      if (gap < MERGE_THRESHOLD) {
+        prev.str += (gap > 2.5 ? ' ' : '') + line.items[i].str;
+        prev.w = (line.items[i].x + (line.items[i].w || 0)) - prev.x;
+      } else {
+        merged.push(Object.assign({}, line.items[i]));
+      }
+    }
+    line.items = merged;
+  });
+
+  // ── Phase 2: detect column split per page via within-line gaps ──
+  // Root cause of the original bug: after rough grouping, items from both
+  // columns share the same line bucket. Looking at line-start X only ever
+  // returned the LEFT column start, so the right column was never found.
+  // Fix: scan each rough line for large horizontal gaps between consecutive
+  // items. A gap ≥ threshold that lands in the right 60 % of the page is
+  // a reliable inter-column gutter signal.
+  const pageRoughLines = {};
+  Object.values(roughMap).forEach(l => {
+    if (!pageRoughLines[l.page]) pageRoughLines[l.page] = [];
+    pageRoughLines[l.page].push(l);
+  });
+
+  const pageSplits = {};
+  Object.keys(pageRoughLines).forEach(p => {
+    const pn  = parseInt(p);
+    const pW  = pageWidths[pn] || 595;
+    const minGap = Math.max(100, pW * 0.06); // SOGLIA: 100pt — buffer oltre il merge, sotto il gutter
+
+    const rightStartXs = [];
+    pageRoughLines[pn].forEach(line => {
+      const items = line.items;
+      for (let i = 1; i < items.length; i++) {
+        const prev = items[i - 1];
+        const gap  = items[i].x - (prev.x + (prev.w || 0));
+        // Large gap AND item is in the right 60 % of the page
+        if (gap >= minGap && items[i].x > pW * 0.4) {
+          rightStartXs.push(items[i].x);
+        }
+      }
+    });
+
+    if (rightStartXs.length < 2) { pageSplits[pn] = null; return; }
+
+    rightStartXs.sort((a, b) => a - b);
+
+    // Remove outliers: keep only X values within ±80pt of the median.
+    // False positives (e.g. long indented code lines) can inject isolated
+    // low X values; filtering protects the split estimate from them.
+    const medRX  = rightStartXs[Math.floor(rightStartXs.length / 2)];
+    const filtRX = rightStartXs.filter(x => Math.abs(x - medRX) <= 80);
+    if (filtRX.length < 2) { pageSplits[pn] = null; return; }
+
+    // Use the MINIMUM of the filtered set: the leftmost consistent
+    // right-column start that was actually observed.
+    const splitX = filtRX[0];
+    if (splitX < pW * 0.3 || splitX > pW * 0.85) { pageSplits[pn] = null; return; }
+
+    // Senza margine negativo: split esattamente all'X rilevato
+    pageSplits[pn] = splitX;
+  });
+
+  // ── Phase 3: column-aware line grouping ──
+  // Each item is classified BEFORE entering the line bucket.
+  // Left-column and right-column items at the same Y now get
+  // separate line entries  →  no more mixed lines.
+  const lineMap = Object.create(null);
+  allItems.forEach(item => {
+    const split  = pageSplits[item.page];
+    const column = (split != null && item.x >= split) ? 'right' : 'left';
+    const yr     = Math.round(item.y / 2) * 2;
+    const key    = `${item.page}_${column}_${yr}`;
+    if (!lineMap[key]) lineMap[key] = { page: item.page, y: item.y, column, items: [] };
+    lineMap[key].items.push(item);
+  });
+
+  const lines = Object.values(lineMap).sort((a, b) => {
+    if (a.page !== b.page) return a.page - b.page;
+    return b.y - a.y; // visually top → bottom
+  });
+
+  // Sort items left→right within each line, build text, compute bold flags
+  lines.forEach(line => {
+    line.items.sort((a, b) => a.x - b.x);
+
+    let txt = '';
+    line.items.forEach((item, i) => {
+      if (i === 0) { txt += item.str; return; }
+      const prev = line.items[i - 1];
+      const gap  = item.x - (prev.x + (prev.w || 0));
+      // Threshold 1pt: catches word-spaces in small proportional fonts
+      // (space width ≈ 1.5–2pt at 7–8pt) while ignoring true kerning
+      // overlaps (gap ≤ 0) and intra-glyph gaps (gap < 1pt).
+      txt += (gap > 1 ? ' ' : '') + item.str;
+    });
+    line.text = txt.trim();
+
+    const totalCh = line.items.reduce((s, i) => s + i.str.length, 0);
+    const boldCh  = line.items
+      .filter(isBoldItem)
+      .reduce((s, i) => s + i.str.length, 0);
+
+    line.firstIsBold = line.items.length > 0 && isBoldItem(line.items[0]);
+    line.boldRatio   = totalCh ? boldCh / totalCh : 0;
+  });
+
+  const leftLines  = lines.filter(l => l.column === 'left');
+  const rightLines = lines.filter(l => l.column === 'right');
+
+  // ── Paragraph gap threshold (computed from left column) ──
+  const spacings = [];
+  for (let i = 1; i < leftLines.length; i++) {
+    if (leftLines[i].page === leftLines[i - 1].page) {
+      const g = leftLines[i - 1].y - leftLines[i].y;
+      if (g > 0 && g < 60) spacings.push(g);
+    }
+  }
+  spacings.sort((a, b) => a - b);
+  const medSp   = spacings[Math.floor(spacings.length / 2)] || 12;
+  const paraGap = medSp * 1.85;
+
+  // ── Group LEFT lines → main paragraphs ──
+  setStatus('Identificazione struttura e titoli…', 75);
+
+  const paras = [];
+  let cur = [];
+  for (let i = 0; i < leftLines.length; i++) {
+    cur.push(leftLines[i]);
+    const next    = leftLines[i + 1];
+    const isLast  = !next;
+    const pgBreak = next && next.page !== leftLines[i].page;
+    const bigGap  = next && next.page === leftLines[i].page &&
+                    (leftLines[i].y - next.y) > paraGap;
+    if (isLast || pgBreak || bigGap) {
+      paras.push({ lines: cur.slice() });
+      cur = [];
+    }
+  }
+
+  // ── Group RIGHT lines → annotation paragraphs ──
+  const rightParas = [];
+  let rcur = [];
+  for (let i = 0; i < rightLines.length; i++) {
+    rcur.push(rightLines[i]);
+    const next    = rightLines[i + 1];
+    const isLast  = !next;
+    const pgBreak = next && next.page !== rightLines[i].page;
+    const bigGap  = next && next.page === rightLines[i].page &&
+                    (rightLines[i].y - next.y) > paraGap;
+    if (isLast || pgBreak || bigGap) {
+      rightParas.push({ lines: rcur.slice() });
+      rcur = [];
+    }
+  }
+
+  // ── Convert left paragraphs → blocks ──
+  const leftBlocks = [];
+  paras.forEach(para => {
+    const text = para.lines.map(l => l.text).join('\n').trim();
+    if (!text || text.length < 2) return;
+    const fl      = para.lines[0];
+    const isTitle = fl.firstIsBold && fl.boldRatio >= 0.65;
+    leftBlocks.push({
+      text, isTitle,
+      titleText : fl.text.trim(),
+      y    : fl.y,
+      page : fl.page
+    });
+  });
+
+  // leftBlocks arriva in ordine bottom→top (da 'lines' sorted per b.y-a.y).
+  // Riordiniamo per pagina ascendente e Y discendente (top→bottom).
+  leftBlocks.sort((a, b) => {
+    if (a.page !== b.page) return a.page - b.page;
+    return b.y - a.y;
+  });
+
+  // ── Convert right paragraphs → annotation blocks ──
+  // Right-column lines are soft-wrapped text: join with space, not newline.
+  // Prepend "! " to annotations that start with "(" (footnote marker).
+  const rightBlocks = [];
+  rightParas.forEach(para => {
+    const raw  = para.lines.map(l => l.text).join(' ').trim();
+    if (!raw || raw.length < 2) return;
+    const fl   = para.lines[0];
+    rightBlocks.push({
+      text         : raw,
+      isTitle      : false,
+      isAnnotation : true,
+      titleText    : null,
+      y    : fl.y,
+      page : fl.page
+    });
+  });
+
+  // ── Place each annotation block at the end of its logical section ──
+  // Strategy: find the last left block that belongs to the same "section"
+  // (between the nearest preceding title and the next title in the left stream).
+  const titlePositions = leftBlocks
+    .map((lb, i) => ({ i, page: lb.page, y: lb.y }))
+    .filter((_, i) => leftBlocks[i].isTitle);
+
+  function sectionEndIdx(rb) {
+    for (let k = 0; k < titlePositions.length; k++) {
+      const tp     = titlePositions[k];
+      const nextTp = titlePositions[k + 1];
+      const afterTitle  = rb.page > tp.page ||
+        (rb.page === tp.page && rb.y <= tp.y);
+      const beforeNext  = !nextTp || rb.page < nextTp.page ||
+        (rb.page === nextTp.page && rb.y > nextTp.y);
+      if (afterTitle && beforeNext) {
+        return nextTp ? nextTp.i - 1 : leftBlocks.length - 1;
+      }
+    }
+    return leftBlocks.length - 1;
+  }
+
+  const insertAfter = leftBlocks.map(() => []);
+  rightBlocks.forEach(rb => {
+    const idx = sectionEndIdx(rb);
+    insertAfter[Math.min(idx, insertAfter.length - 1)].push(rb);
+  });
+
+  const blocks = [];
+  leftBlocks.forEach((lb, i) => {
+    blocks.push(lb);
+    insertAfter[i].forEach(rb => blocks.push(rb));
+  });
+
+  setStatus('Costruzione sezioni…', 88);
+  return buildSections(blocks);
+}
+
+// ─────────────────────────────────────────────
+// SECTION BUILDER
+// ─────────────────────────────────────────────
+function buildSections(blocks) {
+  const sections     = [];
+  let curTitle       = null;
+  let curTitleText   = null;
+  let curContent     = [];
+
+  blocks.forEach(block => {
+    if (block.isAnnotation) {
+      // Annotations never start a new section — they append to the current one.
+      const t = block.text.trim();
+      if (t) curContent.push(t);
+    } else if (block.isTitle) {
+      // Flush previous
+      if (curContent.length > 0) {
+        sections.push({
+          title     : curTitle,
+          titleText : curTitleText,
+          content   : curContent.join('\n\n')
+        });
+      }
+      curTitle     = block.text.trim();
+      curTitleText = (block.titleText || block.text).trim();
+      curContent   = [block.text.trim()]; // title as first line of file
+    } else {
+      const t = block.text.trim();
+      if (t) curContent.push(t);
+    }
+  });
+
+  // Flush last
+  if (curContent.length > 0) {
+    sections.push({
+      title     : curTitle,
+      titleText : curTitleText,
+      content   : curContent.join('\n\n')
+    });
+  }
+
+  return sections;
+}
+
+// ─────────────────────────────────────────────
+// COMMENT-LINE PREFIX  ( "(" → "! (" )
+// ─────────────────────────────────────────────
+/**
+ * Any line whose first non-space character is "(" is a footnote / index
+ * reference, not part of the configuration. Prepend "! " so that tools
+ * like Cisco IOS treat it as a comment and it stands out visually.
+ */
+function applyCommentPrefixes(text) {
+  return text.split('\n').map(line => {
+    const t = line.trimStart();
+    return t.startsWith('(') ? '! ' + t : line;
+  }).join('\n');
+}
+
+/**
+ * Ripara righe spezzate da un falso split di colonna: se una riga ha
+ * un < aperto ma non il > corrispondente, prova a fondere con la riga
+ * successiva fino a chiudere la parentesi.
+ */
+function repairBrokenBrackets(text) {
+  const lines = text.split('\n');
+  const out   = [];
+  let pending = '';
+
+  for (const line of lines) {
+    const merged = pending ? pending + ' ' + line : line;
+
+    const opens  = (merged.match(/</g) || []).length;
+    const closes = (merged.match(/>/g) || []).length;
+
+    if (opens > closes) {
+      // Angolo ancora aperto — accumula
+      pending = merged;
+    } else {
+      out.push(merged);
+      pending = '';
+    }
+  }
+  if (pending) out.push(pending);
+
+  return out.join('\n');
+}
+
+// ─────────────────────────────────────────────
+// SHORT SECTION MERGE
+// ─────────────────────────────────────────────
+/**
+ * Sections whose content (excluding the title line) is shorter than
+ * MIN_CHARS are merged forward into the next section, but only when the
+ * two sections belong to the same top-level group.
+ *
+ * Group detection: if titles begin with a number/decimal prefix
+ * (e.g. "1", "1.1", "2.3") the top-level number (before the first dot)
+ * must match.  If neither title carries a numeric prefix, the two
+ * sections are always considered same-group.
+ */
+const MERGE_MIN_CHARS = 100;
+
+function topLevelGroup(title) {
+  if (!title) return null;
+  const m = title.match(/^\s*(\d+)[\s.\-:)]/);
+  return m ? m[1] : null;
+}
+
+function sameGroup(titleA, titleB) {
+  const gA = topLevelGroup(titleA);
+  const gB = topLevelGroup(titleB);
+  // If both have a numeric prefix they must share the same top-level number
+  if (gA !== null && gB !== null) return gA === gB;
+  // Otherwise (no numeric prefix on at least one) → allow merge
+  return true;
+}
+
+function contentLength(section) {
+  // Count chars excluding the first line (title repetition)
+  const lines = section.content.split('\n');
+  return lines.slice(1).join('\n').trim().length;
+}
+
+function mergeShortSections(sections) {
+  if (!sections.length) return sections;
+
+  // Work on a shallow copy to avoid mutating originals
+  const work = sections.map(s => ({ ...s }));
+  const out  = [];
+  let i = 0;
+
+  while (i < work.length) {
+    let cur = { ...work[i] };
+
+    // Keep absorbing the next section while current is short enough
+    // and the next section is in the same group
+    while (
+      contentLength(cur) < MERGE_MIN_CHARS &&
+      i + 1 < work.length &&
+      sameGroup(cur.title, work[i + 1].title)
+    ) {
+      i++;
+      const next = work[i];
+
+      // Append next content (without duplicating its title line if it
+      // equals cur.title, but normally we just concatenate)
+      cur = {
+        ...cur,
+        content: cur.content + '\n\n' + next.content
+      };
+    }
+
+    out.push(cur);
+    i++;
+  }
+
+  return out;
+}
+
+// ─────────────────────────────────────────────
+// FILE NAMING
+// ─────────────────────────────────────────────
+function cleanTitle(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')  // strip diacritics
+    .replace(/[^a-zA-Z0-9 \-]/g, '')  // keep alphanum, space, hyphen
+    .trim()
+    .replace(/ +/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .substring(0, 60);
+}
+
+// ─────────────────────────────────────────────
+// FOLDER RESOLUTION
+// ─────────────────────────────────────────────
+/**
+ * Returns the folder path for a section based on its title.
+ *
+ * Rules:
+ *  - No title (intro)            → root  ""
+ *  - Title starts with "N " or "N." or "N-" or "N:"
+ *      └ top-level  (N has no dot)  → folder "N_CleanTitle/"
+ *      └ sub-level  (N = "1.2")     → folder of parent top-level, i.e. "1_…/"
+ *  - Title with no numeric prefix → root ""
+ *
+ * Additionally we track the *last seen top-level folder* so that
+ * sub-sections without an explicit prefix are placed inside it.
+ */
+function buildFolderIndex(sections) {
+  // First pass: collect top-level entries to build folder names
+  // A top-level entry is one whose numeric prefix has no dot (e.g. "1", "2")
+  const topFolders = Object.create(null); // prefix → "01_CleanName"
+
+  sections.forEach(s => {
+    if (!s.title) return;
+    const m = s.title.match(/^\s*(\d+)[\s.\-:)]/);
+    if (!m) return;
+    const prefix = m[1];
+    if (prefix.includes('.')) return; // sub-level, skip
+    if (topFolders[prefix]) return;   // already registered
+    const name = cleanTitle(s.titleText || s.title) || 'sezione';
+    topFolders[prefix] = `${prefix.padStart(2,'0')}_${name}`;
+  });
+
+  return topFolders;
+}
+
+function resolveFolder(title, topFolders, lastTopFolder) {
+  if (!title) return { folder: '', lastTopFolder };
+
+  const m = title.match(/^\s*(\d+)[\s.\-:)]/);
+  if (!m) return { folder: '', lastTopFolder };
+
+  const rawPrefix = m[1];
+
+  if (!rawPrefix.includes('.')) {
+    // This IS a top-level section
+    const folder = topFolders[rawPrefix] || `${rawPrefix.padStart(2,'0')}`;
+    return { folder, lastTopFolder: folder };
+  }
+
+  // Sub-level: use parent top-level number (before first dot)
+  const parentNum = rawPrefix.split('.')[0];
+  const folder    = topFolders[parentNum] || lastTopFolder || '';
+  return { folder, lastTopFolder };
+}
+
+function assignFileNames(sections) {
+  const topFolders   = buildFolderIndex(sections);
+  let lastTopFolder  = '';
+  let tIdx           = 0;
+
+  return sections.map(s => {
+    let fileName, folder;
+
+    if (!s.title) {
+      fileName = '00_Introduzione.txt';
+      folder   = '';
+    } else {
+      tIdx++;
+      const num  = String(tIdx).padStart(2, '0');
+      const name = cleanTitle(s.titleText || s.title) || 'sezione';
+      fileName   = `${num}_${name}.txt`;
+
+      const resolved  = resolveFolder(s.title, topFolders, lastTopFolder);
+      folder          = resolved.folder;
+      lastTopFolder   = resolved.lastTopFolder;
+    }
+
+    // Full path inside ZIP  →  "01_Capitolo/03_Paragrafo.txt"  or just "03_Paragrafo.txt"
+    const zipPath = folder ? `${folder}/${fileName}` : fileName;
+    return { ...s, fileName, folder, zipPath };
+  });
+}
+
+// ─────────────────────────────────────────────
+// ZIP GENERATION
+// ─────────────────────────────────────────────
+async function generateZip(sections, origName) {
+  const zip  = new JSZip();
+  const date = new Date().toLocaleString('it-IT', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+
+  // ── Index file ──
+  const sep  = '─'.repeat(44);
+  let idx    = `INDICE DEI FILE GENERATI\n${'═'.repeat(44)}\n`;
+  idx       += `File originale  : ${origName}\n`;
+  idx       += `Elaborazione    : ${date}\n`;
+  idx       += `Sezioni trovate : ${sections.length}\n`;
+  idx       += `${sep}\n\n`;
+
+  sections.forEach((s, i) => {
+    const n    = String(i + 1).padStart(2, '0');
+    const wc   = s.content.split(/\s+/).filter(Boolean).length;
+    const path = s.zipPath || s.fileName;
+    idx += `${n}. ${path}\n`;
+    if (s.title) idx += `    Titolo : ${s.title}\n`;
+    idx += `    Parole : ${wc}\n\n`;
+  });
+
+  zip.file('INDICE.txt', idx);
+
+  // ── Content files (with folder structure) ──
+  sections.forEach(s => zip.file(
+    s.zipPath || s.fileName,
+    applyCommentPrefixes(repairBrokenBrackets(s.content))
+  ));
+
+  return zip.generateAsync({ type: 'blob' });
+}
+</script>
+</body>
+</html>
