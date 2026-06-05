@@ -1222,7 +1222,7 @@ async function processPdf(file) {
     lineMap[key].items.push(item);
   });
 
-  const lines = Object.values(lineMap).sort((a, b) => {
+  let lines = Object.values(lineMap).sort((a, b) => {
     if (a.page !== b.page) return a.page - b.page;
     return b.y - a.y; // visually top → bottom
   });
