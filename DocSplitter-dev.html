@@ -1289,7 +1289,7 @@ async function processPdf(file) {
         pageGroups.get(l.page).push({
           text: t,
           p2: t.split(/\s+/).slice(0, 2).join(' ').toLowerCase(),
-          p1: t.split(/\s+/)[0].toLowerCase(),
+          p1: t.split(/\s+/)[0].toLowerCase().replace(/[\s\-–—.,:;!?'"()]+$/g, ''),
           start: t.toLowerCase().substring(0, 12)
         });
       });
@@ -1347,7 +1347,7 @@ async function processPdf(file) {
           if (toRemove.has(t)) return false;
           const p2 = t.split(/\s+/).slice(0, 2).join(' ').toLowerCase();
           if (p2.length >= 3 && toRemove.has(`__p2:${p2}`)) return false;
-          const p1 = t.split(/\s+/)[0].toLowerCase();
+          const p1 = t.split(/\s+/)[0].toLowerCase().replace(/[\s\-–—.,:;!?'"()]+$/g, '');
           if (p1.length >= 3 && toRemove.has(`__p1:${p1}`)) return false;
           const start = t.toLowerCase().substring(0, 12);
           if (start.length >= 6 && toRemove.has(`__st:${start}`)) return false;
