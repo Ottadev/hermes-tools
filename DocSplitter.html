@@ -1227,39 +1227,24 @@ async function processPdf(file) {
     });
   });
 
-  // ── Place each annotation block at the end of its logical section ──
-  // Strategy: find the last left block that belongs to the same "section"
-  // (between the nearest preceding title and the next title in the left stream).
-  const titlePositions = leftBlocks
-    .map((lb, i) => ({ i, page: lb.page, y: lb.y }))
-    .filter((_, i) => leftBlocks[i].isTitle);
-
-  function sectionEndIdx(rb) {
-    for (let k = 0; k < titlePositions.length; k++) {
-      const tp     = titlePositions[k];
-      const nextTp = titlePositions[k + 1];
-      const afterTitle  = rb.page > tp.page ||
-        (rb.page === tp.page && rb.y <= tp.y);
-      const beforeNext  = !nextTp || rb.page < nextTp.page ||
-        (rb.page === nextTp.page && rb.y > nextTp.y);
-      if (afterTitle && beforeNext) {
-        return nextTp ? nextTp.i - 1 : leftBlocks.length - 1;
-      }
-    }
-    return leftBlocks.length - 1;
-  }
-
-  const insertAfter = leftBlocks.map(() => []);
-  rightBlocks.forEach(rb => {
-    const idx = sectionEndIdx(rb);
-    insertAfter[Math.min(idx, insertAfter.length - 1)].push(rb);
-  });
+  // ── Per-page merge: blocchi sinistri poi destri per pagina ──
+  // Scansione lineare per pagina: prima tutti i blocchi di sinistra
+  // (config), poi tutti i blocchi di destra (annotazioni). buildSections
+  // allega automaticamente le annotazioni isAnnotation alla sezione
+  // corrente, evitando la fragile logica Y/pagina di sectionEndIdx.
+  const allPages = [...new Set([
+    ...leftBlocks.map(b => b.page),
+    ...rightBlocks.map(b => b.page)
+  ])].sort((a, b) => a - b);
 
   const blocks = [];
-  leftBlocks.forEach((lb, i) => {
-    blocks.push(lb);
-    insertAfter[i].forEach(rb => blocks.push(rb));
-  });
+  for (const p of allPages) {
+    leftBlocks.filter(b => b.page === p).forEach(lb => blocks.push(lb));
+    rightBlocks
+      .filter(b => b.page === p)
+      .sort((a, b) => b.y - a.y)
+      .forEach(rb => blocks.push(rb));
+  }
 
   setStatus('Costruzione sezioni…', 88);
   return buildSections(blocks);
