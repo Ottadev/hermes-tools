@@ -1269,6 +1269,7 @@ async function processPdf(file) {
     const totalPages = new Set(lines.map(l => l.page)).size;
     if (totalPages >= 3) {
       const THRESHOLD = Math.max(3, Math.ceil(totalPages * 0.75));
+      const THRESHOLD_P1 = Math.max(3, Math.ceil(totalPages * 0.60)); // lower for first-word (catches "Solutions" quando e' ultima parola su alcune pagine)
 
       // Normalize text: strip NBSP, zero-width chars, normalize whitespace
       const norm = s => s.replace(/[\u00A0\u2000-\u200F\u2028-\u202F\uFEFF]/g, ' ')
@@ -1335,10 +1336,10 @@ async function processPdf(file) {
         if (pages.size >= THRESHOLD) toRemove.add(`__p2:${prefix}`);
       });
       p1Pages.forEach((pages, word) => {
-        if (pages.size >= THRESHOLD) toRemove.add(`__p1:${word}`);
+        if (pages.size >= THRESHOLD_P1) toRemove.add(`__p1:${word}`);
       });
       startPages.forEach((pages, s) => {
-        if (pages.size >= THRESHOLD) toRemove.add(`__st:${s}`);
+        if (pages.size >= THRESHOLD_P1) toRemove.add(`__st:${s}`);
       });
 
       if (toRemove.size > 0) {
@@ -1363,8 +1364,8 @@ async function processPdf(file) {
         if (removed > 0) {
           console.log(`[filterHeaders] rimosse ${removed} righe (${totalPages} pagine, ${toRemove.size} pattern)`);
         }
-        if (solPages > 0 && solPages < THRESHOLD) {
-          console.log(`[filterHeaders] ATTENZIONE: 'solutions' trovato solo su ${solPages}/${totalPages} pagine (soglia: ${THRESHOLD})`);
+        if (solPages > 0 && solPages < THRESHOLD_P1) {
+          console.log(`[filterHeaders] ATTENZIONE: 'solutions' trovato solo su ${solPages}/${totalPages} pagine (soglia p1: ${THRESHOLD_P1})`);
         }
       }
     }
