@@ -2,10 +2,10 @@
 
 > **Un file HTML singolo** che divide file PDF/DOCX con struttura a capitoli numerati in file `.txt` organizzati in cartelle gerarchiche.
 
-**Versione:** 1.5
+**Versione:** 1.6
 **Stato:** Stabile
 **Creato:** 05/06/2026
-**Ultimo aggiornamento:** 09/06/2026
+**Ultimo aggiornamento:** 10/06/2026
 
 ---
 
@@ -78,6 +78,10 @@ PDF/DOCX
   ▼
 [assignFileNames]
   │  Assegna cartelle/file in base alla gerarchia numerica reale
+  │
+  ▼
+[applyReplacements]  ← v9
+  │  Applica coppie Trova/Sostituisci (regex) se toggle attivo
   │
   ▼
 [generateZip]
@@ -222,6 +226,7 @@ Per ogni sezione numerata, determina se ha figli controllando se esiste un'altra
 - **INDICE.txt** — nome originale, data, conteggio sezioni, elenco file con percorso e conteggio parole
 - **File `.txt`** — struttura cartelle da `assignFileNames`
 - **Prefisso `!`** — righe che iniziano con `(` ricevono `! ` (compatibilità Cisco IOS)
+- **Anonimizzazione** — coppie Trova/Sostituisci con regex applicate in fase di generazione ZIP (se toggle attivo)
 
 ---
 
@@ -232,6 +237,7 @@ Per ogni sezione numerata, determina se ha figli controllando se esiste un'altra
 - Preview cards con path, parole, excerpt
 - Download ZIP button
 - 100% locale
+- **Sidebar:** Tema scuro (persistente), sezione **Anonimizzazione** con toggle on/off e righe Trova/Sostituisci (regex) aggiungibili dinamicamente
 
 ---
 
@@ -248,6 +254,7 @@ Per ogni sezione numerata, determina se ha figli controllando se esiste un'altra
 
 | Versione | Data | Modifiche |
 |---|---|---|
+| **1.6 (v9)** | 10/06/2026 | Sostituito toggle "Anonimizza IP e ASN" con sistema a coppie **Trova/Sostituisci**: campo regex libero + campo sostituzione. 3 righe predefinite (IP primo ottetto, BGP ASN, AS number). Pulsante "+" per aggiungere righe. Toggle master per abilitare/disabilitare globalmente. |
 | **1.5 (v8)** | 09/06/2026 | Aggiunto filtro header/footer automatico: 4 strategie di matching (testo esatto, prime 2 parole, prima parola, primi 12 caratteri). Soglia doppia: 75% per exact/p2, 60% per p1/start. Normalizzazione Unicode (NBSP, zero-width space, punteggiatura iniziale/finale). Debug visibile in console. |
 | **1.4** | 05/06/2026 | Sostituito `sectionEndIdx` Y-based con `mergeBlocks` (merge ordinato). Column detection a unique-Y cluster. `isHeading()` in `buildSections`. `sameGroup` depth-aware. Gerarchia cartelle/file. Tema dark. |
 | **1.0** | 05/06/2026 | Checkpoint iniziale (DocSplitter v6): pre-merge + gap detection + fallback |
