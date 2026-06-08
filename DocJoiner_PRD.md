@@ -198,7 +198,7 @@ bgp 65000
 
 | Versione | Data | Modifiche |
 |---|---|---|
-| **1.0 (v1)** | 10/06/2026 | Prima release. Caricamento ZIP, albero con checkbox (stato tutto/parziale/nessuno), output TXT/MD, tema scuro. |
+| **1.1** | 08/06/2026 | Aggiunto `runConsistencyCheck()` — verifica che tutti i file selezionati abbiano contenuto, mostra warning visivo in caso di mismatch. Tema scuro come default assoluto + knob sincronizzato. |
 
 ---
 

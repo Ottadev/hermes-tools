@@ -737,6 +737,9 @@
 
       <div id="treeContainer" class="tree-container"></div>
 
+      <!-- Consistency check warning -->
+      <div id="consistencyWarn" style="display:none;margin:0.75rem 0;padding:0.5rem 0.75rem;background:var(--error-bg,#fff5f2);border:1px solid var(--error-border,#f5c4ba);border-radius:6px;font-size:0.8rem;color:var(--error-text,#a04030);white-space:pre-wrap"></div>
+
       <!-- Format picker + Download -->
       <div class="format-row">
         <span class="format-label">Formato output</span>
@@ -772,11 +775,16 @@
 // ── Theme persistence ──
 (function initTheme() {
   const saved = localStorage.getItem('docjoiner-theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  if (saved === 'dark' || (!saved && prefersDark)) {
+  const isDark = saved !== 'light';
+  if (isDark) {
     document.documentElement.setAttribute('data-theme', 'dark');
-    const cb = document.getElementById('themeToggle');
-    if (cb) cb.checked = true;
+  }
+  const cb = document.getElementById('themeToggle');
+  if (cb) cb.checked = isDark;
+  const knob = document.getElementById('themeKnob');
+  if (knob) {
+    knob.style.left = isDark ? '16px' : '2px';
+    knob.style.background = isDark ? '#2d9a6f' : '#5a7a6a';
   }
 })();
 
@@ -1245,12 +1253,36 @@ function renderNode(node, depth) {
   return container;
 }
 
+// ── Consistency check ──
+function runConsistencyCheck() {
+  const checkedPaths = [];
+  collectChecked(fileTreeData, (path) => checkedPaths.push(path));
+
+  const missing = [];
+  checkedPaths.forEach(path => {
+    if (!allFileContents[path]) missing.push(path);
+  });
+
+  return missing;
+}
+
 // ─────────────────────────────────────────────
 // OUTPUT GENERATION
 // ─────────────────────────────────────────────
 function generateOutput(format) {
   const entries = getSelectedEntries();
   if (!entries.length) return '';
+
+  // Consistency check: warn if some checked files have no content
+  const missing = runConsistencyCheck();
+  const warnEl = document.getElementById('consistencyWarn');
+  if (missing.length > 0) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠ ${missing.length} file selezionat${missing.length === 1 ? 'o' : 'i'} ma senza contenuto:\n` +
+      missing.join('\n');
+  } else {
+    warnEl.style.display = 'none';
+  }
 
   const sep = '═══════════════════════════════════════════════════════════';
   const thinSep = '───────────────────────────────────────────────────────────';
