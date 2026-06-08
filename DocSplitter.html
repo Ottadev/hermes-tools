@@ -654,23 +654,35 @@
         </svg>
         <span style="font-size:0.7rem;color:var(--sidebar-muted);flex:1">Anonimizzazione</span>
         <label style="position:relative;display:inline-block;width:32px;height:18px;cursor:pointer">
-          <input type="checkbox" id="anonToggle" style="opacity:0;width:0;height:0">
+          <input type="checkbox" id="anonToggle" style="opacity:0;width:0;height:0" checked>
           <span style="position:absolute;inset:0;background:var(--sidebar-muted);border-radius:100px;transition:0.2s"></span>
           <span id="anonKnob" style="position:absolute;left:2px;top:2px;width:14px;height:14px;background:#6a6a85;border-radius:50%;transition:0.2s"></span>
         </label>
       </div>
       <div id="anonRules" style="display:flex;flex-direction:column;gap:0.375rem">
         <div class="anon-row">
-          <input class="anon-find" type="text" placeholder="Trova (regex)" value="(\d{1,3})\.(\d{1,3}\.\d{1,3}\.\d{1,3})">
+          <input class="anon-find" type="text" placeholder="Trova (regex)" value="\b7\.(\d{1,3}\.\d{1,3}\.\d{1,3})\b">
+          <input class="anon-repl" type="text" placeholder="Sostituisci" value="M.$1">
+        </div>
+        <div class="anon-row">
+          <input class="anon-find" type="text" placeholder="Trova (regex)" value="12874">
+          <input class="anon-repl" type="text" placeholder="Sostituisci" value="<ASN ISP>">
+        </div>
+        <div class="anon-row">
+          <input class="anon-find" type="text" placeholder="Trova (regex)" value="\b[Ff]astweb\b">
+          <input class="anon-repl" type="text" placeholder="Sostituisci" value="<ASN>">
+        </div>
+        <div class="anon-row">
+          <input class="anon-find" type="text" placeholder="Trova (regex)" value="\b10\.(\d{1,3}\.\d{1,3}\.\d{1,3})\b">
+          <input class="anon-repl" type="text" placeholder="Sostituisci" value="C.$1">
+        </div>
+        <div class="anon-row">
+          <input class="anon-find" type="text" placeholder="Trova (regex)" value="65535">
+          <input class="anon-repl" type="text" placeholder="Sostituisci" value="<ASN PRIVATO>">
+        </div>
+        <div class="anon-row">
+          <input class="anon-find" type="text" placeholder="Trova (regex)" value="\b(\d{1,3})\.(\d{1,3}\.\d{1,3}\.\d{1,3})\b">
           <input class="anon-repl" type="text" placeholder="Sostituisci" value="XXX.$2">
-        </div>
-        <div class="anon-row">
-          <input class="anon-find" type="text" placeholder="Trova (regex)" value="bgp\s+(\d{1,5})">
-          <input class="anon-repl" type="text" placeholder="Sostituisci" value="bgp XXXXX">
-        </div>
-        <div class="anon-row">
-          <input class="anon-find" type="text" placeholder="Trova (regex)" value="AS\s*(\d{1,5})">
-          <input class="anon-repl" type="text" placeholder="Sostituisci" value="ASXXXXX">
         </div>
       </div>
       <button id="addAnonRow" style="margin-top:0.375rem;background:transparent;border:1px dashed #3a3a55;color:var(--sidebar-muted);border-radius:5px;padding:0.25rem 0.5rem;font-size:0.7rem;cursor:pointer;width:100%;font-family:inherit">+ Aggiungi riga</button>
@@ -774,15 +786,25 @@
 // ─────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
 // ── Theme persistence ──
 (function initTheme() {
   const saved = localStorage.getItem('docsplitter-theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  if (saved === 'dark' || (!saved && prefersDark)) {
+  const isDark = saved !== 'light';
+  if (isDark) {
     document.documentElement.setAttribute('data-theme', 'dark');
-    const cb = document.getElementById('themeToggle');
-    if (cb) cb.checked = true;
+  }
+  const cb = document.getElementById('themeToggle');
+  if (cb) cb.checked = isDark;
+  const knob = document.getElementById('themeKnob');
+  if (knob) {
+    knob.style.left = isDark ? '16px' : '2px';
+    knob.style.background = isDark ? '#d65a40' : '#6a6a85';
+  }
+  // Sync anon knob position — default ON now
+  const anonKnob = document.getElementById('anonKnob');
+  if (anonKnob) {
+    anonKnob.style.left = '16px';
+    anonKnob.style.background = '#d65a40';
   }
 })();
 
@@ -1494,10 +1516,26 @@ async function processPdf(file) {
     }
   }
 
+  // ── Repair: merge lines broken inside <...> brackets ──
+  function repairBrokenBrackets(text) {
+    const lines = text.split('\n');
+    let pending = '';
+    const out = [];
+    for (const line of lines) {
+      const merged = pending ? pending + ' ' + line : line;
+      const opens = (merged.match(/</g) || []).length;
+      const closes = (merged.match(/>/g) || []).length;
+      if (opens > closes) { pending = merged; }
+      else { out.push(merged); pending = ''; }
+    }
+    if (pending) out.push(pending);
+    return out.join('\n');
+  }
+
   // ── Convert left paragraphs → blocks ──
   const leftBlocks = [];
   paras.forEach(para => {
-    const text = para.lines.map(l => l.text).join('\n').trim();
+    const text = repairBrokenBrackets(para.lines.map(l => l.text).join('\n').trim());
     if (!text || text.length < 2) return;
     const fl      = para.lines[0];
     const isTitle = fl.firstIsBold && fl.boldRatio >= 0.65;

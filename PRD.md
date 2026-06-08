@@ -2,10 +2,10 @@
 
 > **Un file HTML singolo** che divide file PDF/DOCX con struttura a capitoli numerati in file `.txt` organizzati in cartelle gerarchiche.
 
-**Versione:** 1.6
+**Versione:** 1.7
 **Stato:** Stabile
 **Creato:** 05/06/2026
-**Ultimo aggiornamento:** 10/06/2026
+**Ultimo aggiornamento:** 08/06/2026
 
 ---
 
@@ -82,6 +82,13 @@ PDF/DOCX
   ▼
 [applyReplacements]  ← v9
   │  Applica coppie Trova/Sostituisci (regex) se toggle attivo
+  │  6 righe predefinite: 7.x.x.x→M, 12874→<ASN ISP>,
+  │  Fastweb→<ASN>, 10.x.x.x→C, 65535→<ASN PRIVATO>,
+  │  catch-all IP→XXX
+  │
+  ▼
+[repairBrokenBrackets]  ← v1.7
+  │  Fonde righe con < non chiuso da \n a spazio (dentro buildSections)
   │
   ▼
 [generateZip]
@@ -237,7 +244,7 @@ Per ogni sezione numerata, determina se ha figli controllando se esiste un'altra
 - Preview cards con path, parole, excerpt
 - Download ZIP button
 - 100% locale
-- **Sidebar:** Tema scuro (persistente), sezione **Anonimizzazione** con toggle on/off e righe Trova/Sostituisci (regex) aggiungibili dinamicamente
+- **Sidebar:** Tema scuro come default assoluto (ignora preferenza OS), toggle sincronizzato all'avvio. Sezione **Anonimizzazione** con toggle ON di default e 6 righe predefinite Trova/Sostituisci, aggiungibili dinamicamente.
 
 ---
 
@@ -245,6 +252,7 @@ Per ogni sezione numerata, determina se ha figli controllando se esiste un'altra
 
 - **PDF scansionati:** nessun testo estraibile → errore
 - **Colonna destra corta:** (< 3 righe Y) fallback a within-line gap
+- **Placeholder <...> spezzati:** risolti in v1.7 con `repairBrokenBrackets()` — merge automatico delle righe con `<` non chiuso
 - **DOCX:** solo grassetto/heading, nessuna colonna destra
 - **Documenti senza heading numerati:** usa solo grassetto
 
@@ -254,7 +262,7 @@ Per ogni sezione numerata, determina se ha figli controllando se esiste un'altra
 
 | Versione | Data | Modifiche |
 |---|---|---|
-| **1.6 (v9)** | 10/06/2026 | Sostituito toggle "Anonimizza IP e ASN" con sistema a coppie **Trova/Sostituisci**: campo regex libero + campo sostituzione. 3 righe predefinite (IP primo ottetto, BGP ASN, AS number). Pulsante "+" per aggiungere righe. Toggle master per abilitare/disabilitare globalmente. |
+| **1.7** | 08/06/2026 | Aggiunto `repairBrokenBrackets()` — fonde righe con `<` non chiuso da `\n` a spazio. Tema scuro come default assoluto (non segue più preferenza OS) + knob sincronizzato all'avvio. Toggle anonimizzazione ON di default + knob sincronizzato. 6 righe predefinite: 7.x.x.x→M, 12874→&lt;ASN ISP&gt;, Fastweb→&lt;ASN&gt; (case-insensitive prima lettera), 10.x.x.x→C, 65535→&lt;ASN PRIVATO&gt;, catch-all IP→XXX. |
 | **1.5 (v8)** | 09/06/2026 | Aggiunto filtro header/footer automatico: 4 strategie di matching (testo esatto, prime 2 parole, prima parola, primi 12 caratteri). Soglia doppia: 75% per exact/p2, 60% per p1/start. Normalizzazione Unicode (NBSP, zero-width space, punteggiatura iniziale/finale). Debug visibile in console. |
 | **1.4** | 05/06/2026 | Sostituito `sectionEndIdx` Y-based con `mergeBlocks` (merge ordinato). Column detection a unique-Y cluster. `isHeading()` in `buildSections`. `sameGroup` depth-aware. Gerarchia cartelle/file. Tema dark. |
 | **1.0** | 05/06/2026 | Checkpoint iniziale (DocSplitter v6): pre-merge + gap detection + fallback |
