@@ -786,6 +786,7 @@
 // ─────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
 // ── Theme persistence ──
 (function initTheme() {
   const saved = localStorage.getItem('docsplitter-theme');
@@ -1517,6 +1518,11 @@ async function processPdf(file) {
   }
 
   // ── Repair: merge lines broken inside <...> brackets ──
+  // PDF text extraction can split a single <PLACEHOLDER> across multiple
+  // Y-bins. When rejoined with \n, we get broken lines like:
+  //   <PUBLIC SUBNET           ← no matching >
+  //   NETWORK MASK BIT>  (3)   ← closes it
+  // This function scans for unclosed < and merges with the next line.
   function repairBrokenBrackets(text) {
     const lines = text.split('\n');
     let pending = '';
