@@ -1,0 +1,3054 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes Net Console</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-2: #222639;
+    --border: #2d3352;
+    --text: #e2e4eb;
+    --text-dim: #8b8fa3;
+    --accent: #5b8def;
+    --accent-soft: #2d3f6e;
+    --green: #3ecf8e;
+    --orange: #f0a030;
+    --red: #ef4444;
+    --purple: #a78bfa;
+    --teal: #2dd4bf;
+    --radius: 8px;
+    --font: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    --font-ui: -apple-system, 'Segoe UI', system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h1 small {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: var(--font-ui);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--surface); }
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--surface);
+  }
+  .tab-content { display: none; padding: 20px 0; }
+  .tab-content.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Textareas */
+  textarea, .prompt-output {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 0.8rem;
+    padding: 12px;
+    resize: vertical;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  textarea#configInput { min-height: 200px; }
+  textarea#rawContext { min-height: 200px; }
+  .prompt-output {
+    min-height: 200px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: text;
+    user-select: text;
+  }
+
+  /* Drop zone */
+  #dropZone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+  }
+  #dropZone:hover, #dropZone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  #dropZone .icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+  #dropZone .label { font-size: 0.85rem; color: var(--text-dim); }
+  #dropZone .label strong { color: var(--accent); }
+  #dropZone .hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
+  #fileList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .file-tag {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 99px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .file-tag .remove {
+    cursor: pointer;
+    opacity: 0.6;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .file-tag .remove:hover { opacity: 1; }
+
+  /* Multi-agent grid */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .agent-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .agent-card:hover { border-color: var(--accent-soft); }
+  .agent-card.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .agent-card .check {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: all 0.2s;
+  }
+  .agent-card.selected .check {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .agent-card .check.checked::after {
+    content: '✓';
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .agent-card .info { flex: 1; min-width: 0; }
+  .agent-card .info .name { font-weight: 600; font-size: 0.85rem; font-family: var(--font); }
+  .agent-card .info .desc { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; line-height: 1.3; }
+  .agent-card .info .inputs { font-size: 0.7rem; color: var(--teal); margin-top: 4px; }
+
+  /* Pipeline bar */
+  #pipelineBar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    min-height: 42px;
+    font-size: 0.8rem;
+  }
+  #pipelineBar .step {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: var(--font);
+    font-size: 0.75rem;
+  }
+  #pipelineBar .arrow { color: var(--text-dim); }
+  #pipelineBar .empty { color: var(--text-dim); font-style: italic; }
+
+  /* Agent detail (legenda) */
+  .agent-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .agent-detail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .agent-detail-card .name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+    font-family: var(--font);
+  }
+  .agent-detail-card .desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+  .agent-detail-card .meta {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 500;
+  }
+  .tag-alt { background: var(--red); color: white; }
+  .tag-med { background: var(--orange); color: #1a1d27; }
+  .tag-info { background: var(--accent-soft); color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 8px 20px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: var(--font-ui);
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { background: var(--accent); color: white; }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    border: 1px solid var(--accent);
+  }
+  .btn-primary:hover { background: #4a7de0; }
+  .btn-green {
+    background: transparent;
+    color: var(--green);
+    border: 1px solid var(--green);
+  }
+  .btn-green:hover { background: var(--green); color: #1a1d27; }
+  .btn-accent {
+    background: transparent;
+    color: var(--teal);
+    border: 1px solid var(--teal);
+  }
+  .btn-accent:hover { background: var(--teal); color: #0f1117; }
+
+  /* Session bar */
+  .session-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    font-size: 0.78rem;
+    flex-wrap: wrap;
+  }
+  .session-bar .saved-at { color: var(--text-dim); margin-left: auto; }
+  .session-bar .btn-sm {
+    font-size: 0.72rem;
+    padding: 3px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    transition: all 0.2s;
+  }
+  .session-bar .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+  .session-bar .btn-sm.unsaved { border-color: var(--orange); color: var(--orange); }
+
+  /* Preset tab */
+  .preset-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .preset-card:hover { border-color: var(--accent); }
+  .preset-card .preset-name { font-weight: 600; font-size: 0.9rem; }
+  .preset-card .preset-pipeline { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font); }
+  .preset-card .preset-actions { display: flex; gap: 6px; }
+  .preset-card .btn-xs {
+    font-size: 0.65rem; padding: 2px 8px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 4px; cursor: pointer;
+  }
+  .preset-card .btn-xs:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-card .btn-xs.danger:hover { border-color: var(--red); color: var(--red); }
+
+  /* Report save indicator */
+  .report-save-status {
+    font-size: 0.72rem;
+    color: var(--green);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Validation section */
+  .validation-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    animation: diffFadeIn 0.5s ease;
+  }
+  .validation-section .section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--teal);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .validation-empty {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    padding: 12px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px dashed var(--border);
+    text-align: center;
+  }
+
+  /* Queue tab */
+  .queue-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .queue-item {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.82rem;
+    transition: all 0.2s;
+  }
+  .queue-item.processing { border-color: var(--accent); background: rgba(91,141,239,0.05); }
+  .queue-item.completed { border-color: var(--green); }
+  .queue-item.error { border-color: var(--red); }
+  .queue-item .qi-status {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+  .qi-waiting  { background: var(--surface); color: var(--text-dim); }
+  .qi-running  { background: var(--accent-soft); color: var(--accent); animation: diffSpin 1.5s linear infinite; }
+  .qi-done     { background: #1a3d2a; color: var(--green); }
+  .qi-failed   { background: #3d1a1a; color: var(--red); }
+  .queue-item .qi-name { flex: 1; font-family: var(--font); font-size: 0.8rem; }
+  .queue-item .qi-size { color: var(--text-dim); font-size: 0.7rem; }
+  .queue-item .qi-remove {
+    background: transparent; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 1rem; padding: 2px 6px;
+  }
+  .queue-item .qi-remove:hover { color: var(--red); }
+  .queue-progress {
+    height: 6px;
+    background: var(--surface);
+    border-radius: 3px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .queue-progress .fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  .queue-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .queue-stats {
+    display: flex;
+    gap: 12px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .queue-report {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    animation: diffFadeIn 0.5s ease;
+  }
+
+  /* Hermes send overlay */
+  .hermes-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,17,23,0.92);
+    z-index: 1000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  .hermes-overlay.active { display: flex; }
+  .hermes-overlay .spinner {
+    width: 48px; height: 48px;
+    border: 4px solid var(--border);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: diffSpin 0.8s linear infinite;
+  }
+  .hermes-overlay .msg {
+    color: var(--text);
+    font-size: 1.1rem;
+    font-family: var(--font-ui);
+  }
+  .hermes-overlay .submsg {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    max-width: 500px;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .hermes-overlay .btn-cancel {
+    background: transparent;
+    border: 1px solid var(--red);
+    color: var(--red);
+    padding: 8px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+  .hermes-overlay .btn-cancel:hover { background: var(--red); color: #fff; }
+
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+
+  /* Report parser */
+  .report-section { margin: 8px 0; }
+  .report-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-scenario { background: var(--accent-soft); color: var(--accent); }
+  .badge-critical { background: #3d1a1a; color: var(--red); }
+  .badge-warning { background: #3d2e1a; color: var(--orange); }
+  .badge-ok { background: #1a3d2a; color: var(--green); }
+
+  .delta-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin: 8px 0;
+  }
+  .delta-table th {
+    background: var(--surface-2);
+    padding: 8px 10px;
+    text-align: left;
+    color: var(--text-dim);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .delta-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .stat-item {
+    background: var(--surface-2);
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    text-align: center;
+    flex: 1;
+    min-width: 100px;
+  }
+  .stat-item .num { font-size: 1.3rem; font-weight: 700; display: block; }
+  .stat-item .label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 20px;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  .badge-count {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.7rem;
+    padding: 1px 8px;
+    border-radius: 99px;
+    margin-left: 4px;
+  }
+
+  .empty-state {
+    color: var(--text-dim);
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 0.9rem;
+  }
+  .empty-state .emoji { font-size: 2rem; display: block; margin-bottom: 12px; }
+
+  /* Input file hidden */
+  #fileInput { display: none; }
+
+  /* ─── CONFIG DIFF TAB ─── */
+  .diff-upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .diff-drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    background: var(--surface);
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+  }
+  .diff-drop-zone:hover, .diff-drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .diff-drop-zone.has-file {
+    border-style: solid;
+    border-color: var(--green);
+    background: var(--surface);
+    justify-content: flex-start;
+    align-items: stretch;
+    text-align: left;
+    padding: 14px;
+  }
+  .diff-drop-zone .dz-icon { font-size: 2rem; }
+  .diff-drop-zone .dz-label { font-size: 0.85rem; color: var(--text-dim); }
+  .diff-drop-zone .dz-label strong { color: var(--accent); }
+  .diff-drop-zone .dz-hint { font-size: 0.75rem; color: var(--text-dim); }
+  .diff-drop-zone .dz-side { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .diff-drop-zone .dz-side-a { color: var(--red); }
+  .diff-drop-zone .dz-side-b { color: var(--green); }
+  .diff-file-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .diff-file-info .fname { font-family: var(--font); font-size: 0.85rem; color: var(--accent); font-weight: 600; }
+  .diff-file-info .fmeta { font-size: 0.7rem; color: var(--text-dim); }
+  .diff-file-info .btn-remove {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 4px; cursor: pointer; font-size: 0.75rem; padding: 2px 8px; transition: all 0.2s;
+  }
+  .diff-file-info .btn-remove:hover { border-color: var(--red); color: var(--red); }
+  .diff-preview {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: var(--font);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+    max-height: 120px;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .diff-compare-bar {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .diff-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    animation: diffFadeIn 0.4s ease;
+  }
+  @keyframes diffFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .diff-summary-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .diff-sim-badge {
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 99px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .diff-sim-green { background: #1a3d2a; color: var(--green); }
+  .diff-sim-yellow { background: #3d2e1a; color: var(--orange); }
+  .diff-sim-red { background: #3d1a1a; color: var(--red); }
+  .diff-stat-chip {
+    background: var(--surface-2);
+    padding: 6px 14px;
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-family: var(--font);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .diff-cat-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+    animation: diffFadeIn 0.4s ease;
+  }
+  .diff-cat-header {
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+    transition: background 0.2s;
+  }
+  .diff-cat-header:hover { background: var(--surface-2); }
+  .diff-cat-header .cat-icon { font-size: 1.1rem; }
+  .diff-cat-header .cat-name { font-weight: 600; font-size: 0.9rem; flex: 1; }
+  .diff-cat-header .cat-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .diff-cat-header .cat-badge {
+    font-size: 0.7rem; padding: 2px 8px; border-radius: 99px; font-weight: 600;
+  }
+  .diff-cat-header .cb-add { background: #1a3d2a; color: var(--green); }
+  .diff-cat-header .cb-rem { background: #3d1a1a; color: var(--red); }
+  .diff-cat-header .cb-mod { background: #3d2e1a; color: var(--orange); }
+  .diff-cat-header .cb-same { background: var(--surface-2); color: var(--text-dim); }
+  .diff-cat-header .cat-arrow {
+    font-size: 0.75rem; color: var(--text-dim); transition: transform 0.2s;
+  }
+  .diff-cat-header.open .cat-arrow { transform: rotate(90deg); }
+  .diff-cat-body {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 0;
+  }
+  .diff-cat-body.open { display: block; }
+  .diff-line {
+    font-family: var(--font);
+    font-size: 0.78rem;
+    padding: 4px 16px;
+    line-height: 1.6;
+    border-bottom: 1px solid rgba(45,51,82,0.3);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .diff-line:last-child { border-bottom: none; }
+  .diff-line.added { background: rgba(62,207,142,0.08); color: var(--green); }
+  .diff-line.removed { background: rgba(239,68,68,0.08); color: var(--red); }
+  .diff-line.modified { background: rgba(240,160,48,0.08); color: var(--orange); }
+  .diff-line.identical { color: var(--text-dim); opacity: 0.5; }
+  .diff-line .line-prefix {
+    display: inline-block;
+    width: 18px;
+    text-align: center;
+    font-weight: 700;
+    margin-right: 6px;
+    user-select: none;
+  }
+  .diff-toggle-identical {
+    display: block;
+    width: 100%;
+    background: var(--surface-2);
+    border: none;
+    color: var(--text-dim);
+    padding: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    transition: color 0.2s;
+  }
+  .diff-toggle-identical:hover { color: var(--text); }
+  .diff-loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+  }
+  .diff-loading .spinner {
+    display: inline-block;
+    width: 24px; height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: diffSpin 0.8s linear infinite;
+    margin-bottom: 10px;
+  }
+  @keyframes diffSpin { to { transform: rotate(360deg); } }
+
+  /* Export Agenti Networking */
+  .export-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 20px 0 16px;
+    position: relative;
+  }
+  .export-divider::after {
+    content: 'OPZIONALE';
+    position: absolute;
+    top: -9px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg);
+    padding: 0 12px;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+  .export-section {
+    animation: diffFadeIn 0.4s ease;
+  }
+  .export-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .export-badge {
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .eb-vendor-cisco  { background: #1a2d3d; color: #5b8def; }
+  .eb-vendor-huawei { background: #3d1a1a; color: #ef4444; }
+  .eb-vendor-mixed  { background: #2d2d1a; color: #f0a030; }
+  .eb-device-switch { background: #1a3d1a; color: #3ecf8e; }
+  .eb-device-router  { background: #1a2d3d; color: #5b8def; }
+  .eb-device-unknown { background: var(--surface-2); color: var(--text-dim); }
+  .skill-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .skill-chip {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .skill-chip:hover {
+    border-color: var(--accent);
+    background: rgba(91,141,239,0.2);
+  }
+  .export-prompt-output {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 500px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+  }
+  .export-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-export {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: var(--font-ui);
+    transition: all 0.2s;
+  }
+  .btn-export:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 10px; }
+    .agent-grid { grid-template-columns: 1fr; }
+    .tabs { overflow-x: auto; }
+    .diff-upload-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>
+  ⚡ Hermes Net Console
+  <small>v1.1 — multi-agente + upload file</small>
+</h1>
+<div class="subtitle">Handover configurazioni di rete → Agenti Hermes</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="input" onclick="switchTab('input')">
+    📥 Input & Context
+  </button>
+  <button class="tab-btn" data-tab="agents" onclick="switchTab('agents')">
+    📌 Preset
+    <span class="badge-count" id="presetCount">0</span>
+  </button>
+  <button class="tab-btn" data-tab="prompt" onclick="switchTab('prompt')">
+    📤 Prompt <span id="promptReady" class="badge-count" style="display:none">✓</span>
+  </button>
+  <button class="tab-btn" data-tab="report" onclick="switchTab('report')">
+    📊 Report
+  </button>
+  <button class="tab-btn" data-tab="agenti-detail" onclick="switchTab('agenti-detail')">
+    📖 Legenda
+  </button>
+  <button class="tab-btn" data-tab="configdiff" onclick="switchTab('configdiff')">
+    📊 Config Diff
+  </button>
+  <button class="tab-btn" data-tab="queue" onclick="switchTab('queue')">
+    📦 Coda
+    <span class="badge-count" id="queueCount">0</span>
+  </button>
+</div>
+
+<!-- ─── TAB 1: INPUT & CONTEXT ─── -->
+<div id="tab-input" class="tab-content active">
+
+  <!-- Session bar -->
+  <div class="session-bar" id="sessionBar">
+    <span>💾 Sessione</span>
+    <button class="btn-sm unsaved" id="btnSaveSession" onclick="saveSession()" title="Salva lo stato corrente">💾 Salva</button>
+    <button class="btn-sm" onclick="loadSession()" title="Ripristina l'ultima sessione salvata">📂 Carica</button>
+    <button class="btn-sm" onclick="clearSession()" title="Cancella la sessione salvata">🗑️</button>
+    <span class="saved-at" id="sessionSavedAt">Mai salvata</span>
+  </div>
+
+  <!-- Upload file -->
+  <div class="card">
+    <div class="card-title">📁 Carica file</div>
+    <div style="display:flex; gap:16px; margin-bottom:10px; font-size:0.85rem; align-items:center; flex-wrap:wrap;">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:6px 14px; border-radius:6px; background:var(--accent-soft); color:var(--accent);">
+        <input type="radio" name="fileDest" value="raw" checked onchange="updateDropHint()"> Aggiungi al Contesto RAW
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:6px 14px; border-radius:6px; background:var(--surface-2); color:var(--text-dim);">
+        <input type="radio" name="fileDest" value="config" onchange="updateDropHint()"> Carica come Configurazione
+      </label>
+    </div>
+    <div id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <span class="icon">📄</span>
+      <div class="label">Trascina qui i file o <strong>clicca per sfogliare</strong></div>
+      <div class="hint" id="dropHint">Il file verrà aggiunto al <strong>Contesto RAW</strong> come appunti</div>
+    </div>
+    <input type="file" id="fileInput" multiple accept=".txt,.cfg,.config,.log,.md,.conf" onchange="handleFiles(this.files)">
+    <div id="fileList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔧 Configurazione (sanitizzata)</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">
+      Incolla la configurazione <strong>già sanitizzata</strong> via NetMask Pro, oppure caricane una tramite drag & drop sopra.
+    </p>
+    <textarea id="configInput" placeholder="Incolla qui la configurazione già sanitizzata...&#10;&#10;service timestamps debug datetime msec localtime&#10;hostname {{HOST_01}}&#10;!&#10;interface GigabitEthernet0/0/0&#10; ip address Pb.46.a.2 255.255.255.252&#10;..."></textarea>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📓 Contesto RAW</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">
+      Butta qui <strong>tutto</strong> quello che hai sull'attività: appunti, email, requisiti cliente, ticket, vincoli, schemi, 
+      vecchie chat. <strong>I file caricati sopra vengono aggiunti automaticamente qui.</strong>
+    </p>
+    <textarea id="rawContext" placeholder="Incolla tutto il materiale grezzo...&#10;&#10;Cliente: TIM - Sede Milano - Migrazione core switch&#10;Da: Catalyst 2960X (2 stack) - IOS 15.2&#10;A: Catalyst 9300 (2 stack) - IOS 17.9&#10;Finestra: Sabato 02:00-06:00&#10;Servizi: VoIP (200 utenti), MPLS VPN&#10;Vincolo: Zero Downtime assoluto VoIP"></textarea>
+    <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn" onclick="clearContext()">🗑️ Pulisci contesto</button>
+      <button class="btn btn-green" onclick="loadExample()">📝 Carica esempio</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🎯 Agenti — seleziona uno o più agenti</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">
+      Seleziona in che ordine vuoi eseguire gli agenti. Il prompt verrà generato per il primo della lista.
+    </p>
+    <div id="pipelineBar">
+      <span class="empty">Nessun agente selezionato — clicca qui sotto per scegliere</span>
+    </div>
+    <div class="agent-grid" id="agentSelector"></div>
+  </div>
+
+  <div style="text-align:right; margin-top:8px;">
+    <button class="btn btn-primary" onclick="generatePrompt()">🚀 Genera Prompt</button>
+  </div>
+</div>
+
+<!-- ─── TAB 2: PRESET ─── -->
+<div id="tab-agents" class="tab-content">
+  <div class="card">
+    <div class="card-title">📌 Preset Pipeline</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:12px;">
+      Salva combinazioni di agenti che usi spesso. Clicca su un preset per caricarlo subito.
+    </p>
+    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+      <button class="btn btn-green" onclick="savePreset()">💾 Salva corrente come preset</button>
+      <button class="btn" onclick="loadPreset('migration')" style="font-size:0.8rem;">🔄 Migrazione</button>
+      <button class="btn" onclick="loadPreset('audit')" style="font-size:0.8rem;">🛡️ Audit Sicurezza</button>
+      <button class="btn" onclick="loadPreset('new-cpe')" style="font-size:0.8rem;">🆕 Nuovo CPE</button>
+      <button class="btn" onclick="loadPreset('vendor-change')" style="font-size:0.8rem;">🌐 Cambio Vendor</button>
+    </div>
+    <div id="presetList">
+      <p style="font-size:0.8rem; color:var(--text-dim);">Nessun preset salvato. Usa "💾 Salva corrente come preset" per crearne uno.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TAB 3: PROMPT ─── -->
+<div id="tab-prompt" class="tab-content">
+  <div class="card">
+    <div class="card-title">📤 Prompt Generato</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">
+      Copia questo prompt e incollalo nella chat con Hermes. Il contesto RAW è stato strutturato nel prompt.
+    </p>
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="copyPrompt()">📋 Copia Prompt</button>
+      <button class="btn" onclick="generatePrompt()">🔄 Rigenera</button>
+      <button class="btn btn-accent" onclick="sendToHermes('standard')" id="btnSendStandard">🚀 Invia ad Hermes</button>
+    </div>
+    <div class="prompt-output" id="promptOutput" onclick="selectText(this)">
+      Seleziona uno o più agenti e genera il prompt dal tab Input & Context.
+    </div>
+
+    <!-- Export per Agenti Networking -->
+    <hr class="export-divider">
+    <div class="toolbar" style="margin-bottom:12px;">
+      <button class="btn-export" onclick="exportForNetworkingSkills()" id="btnExportNetworking">
+        🔗 Esporta per Agenti Networking
+      </button>
+      <span style="font-size:0.72rem; color:var(--text-dim);">
+        Mappa gli agenti sugli skill reali e genera un prompt con i nomi skill espliciti
+      </span>
+    </div>
+    <div id="exportOutput"></div>
+  </div>
+</div>
+
+<!-- ─── TAB 4: REPORT ─── -->
+<div id="tab-report" class="tab-content">
+  <div class="card">
+    <div class="card-title">📊 Parsing Report</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">
+      Dopo aver ricevuto il report dall'agente, incollalo qui per vederlo strutturato.
+    </p>
+    <textarea id="reportInput" style="min-height:150px;" placeholder="Incolla qui il report di ritorno dall'agente..."></textarea>
+    <div class="toolbar" style="margin-top:8px;">
+      <button class="btn btn-primary" onclick="parseReport()">📊 Analizza Report</button>
+      <button class="btn" onclick="document.getElementById('reportInput').value=''; document.getElementById('reportOutput').innerHTML='';">🗑️ Pulisci</button>
+      <button class="btn btn-accent" onclick="downloadReport('md')" id="btnDownloadMd" disabled>📥 Scarica .md</button>
+      <button class="btn btn-accent" onclick="downloadReport('json')" id="btnDownloadJson" disabled>📥 Scarica .json</button>
+      <span class="report-save-status" id="reportSaveStatus"></span>
+    </div>
+    <div id="reportOutput"></div>
+
+    <!-- Validazione automatica -->
+    <div id="validationOutput"></div>
+  </div>
+</div>
+
+<!-- ─── TAB 5: LEGENDA ─── -->
+<div id="tab-agenti-detail" class="tab-content">
+  <div class="card">
+    <div class="card-title">📖 Legenda Agenti</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:12px;">
+      Ogni agente è specializzato in un task. Mettili in pipeline: l'output del primo alimenta il secondo, e così via.
+    </p>
+    <div class="agent-detail-grid" id="agentDetailGrid"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔗 Pipeline consigliate</div>
+    <table class="delta-table">
+      <tr><th>Scenario</th><th>Pipeline</th></tr>
+      <tr>
+        <td><span class="report-badge badge-scenario">Migrazione apparato</span></td>
+        <td><code>Discovery → Delta-analysis → Migration-planner → MOP</code></td>
+      </tr>
+      <tr>
+        <td><span class="report-badge badge-scenario">Nuovo CPE standard</span></td>
+        <td><code>Discovery → CLI-templating → MOP</code></td>
+      </tr>
+      <tr>
+        <td><span class="report-badge badge-scenario">Cambio vendor</span></td>
+        <td><code>Discovery → Vendor-translation → CLI-templating</code></td>
+      </tr>
+      <tr>
+        <td><span class="report-badge badge-scenario">Sola documentazione</span></td>
+        <td><code>Discovery → Document-scaffolding → (HLD/LLD)</code></td>
+      </tr>
+      <tr>
+        <td><span class="report-badge badge-scenario">Audit sicurezza</span></td>
+        <td><code>Discovery → Delta-analysis → MOP (fix gap)</code></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── TAB 6: CONFIG DIFF ─── -->
+<div id="tab-configdiff" class="tab-content">
+  <div class="card">
+    <div class="card-title">📊 Config Diff — Confronto configurazioni</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:14px;">
+      Carica due configurazioni di rete (Cisco, Huawei, etc.) e ottieni un diff colorato immediato in 6 categorie.
+    </p>
+
+    <div class="diff-upload-grid">
+      <!-- Config A -->
+      <div class="diff-drop-zone" id="diffZoneA" onclick="document.getElementById('diffFileA').click()">
+        <span class="dz-icon">📤</span>
+        <div class="dz-side dz-side-a">Config A — Legacy / AS-IS</div>
+        <div class="dz-label">Trascina qui o <strong>clicca per sfogliare</strong></div>
+        <div class="dz-hint">.txt .cfg .conf .config</div>
+      </div>
+      <input type="file" id="diffFileA" style="display:none" accept=".txt,.cfg,.conf,.config" onchange="diffHandleFile(this,'A')">
+
+      <!-- Config B -->
+      <div class="diff-drop-zone" id="diffZoneB" onclick="document.getElementById('diffFileB').click()">
+        <span class="dz-icon">📥</span>
+        <div class="dz-side dz-side-b">Config B — Nuova / TO-BE</div>
+        <div class="dz-label">Trascina qui o <strong>clicca per sfogliare</strong></div>
+        <div class="dz-hint">.txt .cfg .conf .config</div>
+      </div>
+      <input type="file" id="diffFileB" style="display:none" accept=".txt,.cfg,.conf,.config" onchange="diffHandleFile(this,'B')">
+    </div>
+
+    <div class="diff-compare-bar" id="diffCompareBar" style="display:none;">
+      <button class="btn btn-primary" onclick="runDiff()" style="font-size:0.95rem; padding:10px 28px;">
+        ⚡ Confronta
+      </button>
+    </div>
+  </div>
+
+  <div id="diffResults"></div>
+</div>
+
+<!-- ─── TAB 7: CODA MULTI-CONFIG ─── -->
+<div id="tab-queue" class="tab-content">
+  <div class="card">
+    <div class="card-title">📦 Coda Multi-Config</div>
+    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:14px;">
+      Carica più configurazioni e processale in sequenza con Hermes. Ogni config viene inviata, analizzata, e il report salvato automaticamente.
+    </p>
+
+    <!-- Upload -->
+    <div id="queueDropZone" onclick="document.getElementById('queueFileInput').click()" style="border:2px dashed var(--border); border-radius:var(--radius); padding:24px; text-align:center; cursor:pointer; margin-bottom:14px; transition:border-color 0.2s;">
+      <span style="font-size:1.5rem;">📁</span>
+      <div style="margin-top:6px; color:var(--text-dim);">Trascina qui i file o <strong>clicca per sfogliare</strong></div>
+      <div style="font-size:0.7rem; color:var(--text-dim);">.txt .cfg .config .conf</div>
+    </div>
+    <input type="file" id="queueFileInput" multiple accept=".txt,.cfg,.config,.conf" onchange="addToQueue(this.files)" style="display:none;">
+
+    <!-- Stats -->
+    <div class="queue-stats" id="queueStats" style="display:none;">
+      <span>📦 <strong id="qsTotal">0</strong> in coda</span>
+      <span style="color:var(--green);">✅ <strong id="qsDone">0</strong></span>
+      <span style="color:var(--red);">❌ <strong id="qsFailed">0</strong></span>
+      <span style="color:var(--accent);">⏳ <strong id="qsRunning">0</strong></span>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="queue-progress" id="queueProgressBar" style="display:none;">
+      <div class="fill" id="queueProgressFill" style="width:0%;"></div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="queue-actions">
+      <button class="btn btn-primary" onclick="startQueue()" id="btnStartQueue">▶️ Avvia coda</button>
+      <button class="btn" onclick="stopQueue()" id="btnStopQueue" style="display:none;">⏹️ Ferma coda</button>
+      <button class="btn" onclick="clearQueue()">🗑️ Svuota coda</button>
+    </div>
+
+    <!-- Queue list -->
+    <div class="queue-list" id="queueList">
+      <p style="font-size:0.8rem; color:var(--text-dim);">Nessuna configurazione in coda. Carica i file qui sopra.</p>
+    </div>
+
+    <!-- Aggregated report -->
+    <div class="queue-report" id="queueAggregatedReport" style="display:none;"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- Hermes send overlay -->
+<div id="hermesOverlay" class="hermes-overlay">
+  <div class="spinner"></div>
+  <div class="msg">🚀 Hermes sta elaborando...</div>
+  <div class="submsg" id="hermesOverlaySub">Invio prompt in corso. Per prompt complessi può servire fino a 2 minuti.</div>
+  <button class="btn-cancel" onclick="cancelHermesSend()">✕ Annulla</button>
+</div>
+
+<script>
+// ─── DATA ───
+
+const AGENTS = [
+  {
+    id: 'agent-discovery-assessment',
+    label: '🔍 Discovery & Assessment',
+    desc: 'Identifica scenario (Z/C/A/B/M2M) con confidence score e produce delta vs template standard. È il passo 0 di ogni pipeline.',
+    inputs: '1 config sanitizzata',
+    priority: 'Alta',
+    next: '→ tutti gli altri agenti'
+  },
+  {
+    id: 'agent-delta-analysis',
+    label: '📊 Delta-Analysis',
+    desc: 'Confronta due configurazioni (legacy vs nuova) in 6 categorie: sicurezza L2, STP, routing, VLAN, hardening, QoS.',
+    inputs: '2 config (legacy + nuova)',
+    priority: 'Alta',
+    next: '→ Migration-planner, MOP'
+  },
+  {
+    id: 'agent-document-scaffolding',
+    label: '📄 Scaffolding Documenti',
+    desc: 'Genera strutture HLD, LLD, Runbook, MOP, Agenda, Post-Mortem, ATP. Placeholder descrittivi, tu riempi il tecnico.',
+    inputs: 'Tipo documento, contesto',
+    priority: 'Alta',
+    next: '→ Documento finale'
+  },
+  {
+    id: 'agent-cli-templating',
+    label: '⚙️ Templating CLI',
+    desc: 'Script CLI parametrizzati con {{placeholder}}, commenti inline, comandi verifica, errori comuni.',
+    inputs: 'Scenario, modello, IOS',
+    priority: 'Alta',
+    next: '→ MOP, Handover NOC'
+  },
+  {
+    id: 'agent-mop-generator',
+    label: '📋 MOP Generator',
+    desc: 'Method of Procedure: pre-check, step con rollback, post-check, rollback globale. Eseguibile dal NOC.',
+    inputs: 'Attività, apparati, servizi',
+    priority: 'Alta',
+    next: '→ Esecuzione NOC'
+  },
+  {
+    id: 'agent-migration-planner',
+    label: '🔄 Piano Migrazione',
+    desc: 'Piano ZDT a 6 fasi: preparazione, attivazione parallela, migrazione backup/primario, burn-in, dismissione.',
+    inputs: 'AS-IS, TO-BE, vincoli',
+    priority: 'Media',
+    next: '→ MOP, Esecuzione'
+  },
+  {
+    id: 'agent-vendor-translation',
+    label: '🌐 Vendor Translation',
+    desc: 'Cisco → Aethra/JunOS/Fortinet/Huawei. Analisi funzionale + equivalente nativo + delta comportamentale.',
+    inputs: 'Config Cisco, target vendor',
+    priority: 'Media',
+    next: '→ CLI-templating'
+  }
+];
+
+const AGENT_DESCRIPTIONS = Object.fromEntries(AGENTS.map(a => [a.id, `**${a.label}** — ${a.desc}`]));
+
+let selectedAgents = [];
+let diffConfigA = null; // { name, size, content }
+let diffConfigB = null;
+let hermesAbortController = null; // per cancellare la richiesta in corso
+
+// ─── TAB SWITCHING ───
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+  if (btn) btn.classList.add('active');
+}
+
+// ─── FILE UPLOAD ───
+
+function handleFiles(files) {
+  for (const file of files) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['txt','cfg','config','log','md','conf'].includes(ext)) {
+      showToast(`⚠️ Formato non supportato: .${ext}`);
+      continue;
+    }
+    const reader = new FileReader();
+    const dest = document.querySelector('input[name="fileDest"]:checked').value;
+    reader.onload = function(e) {
+      const content = e.target.result;
+      if (dest === 'raw') {
+        const ctx = document.getElementById('rawContext');
+        const marker = `\n───── File: ${file.name} ─────\n`;
+        ctx.value += marker + content + '\n';
+        ctx.scrollTop = ctx.scrollHeight;
+        showToast(`✅ ${file.name} → Contesto RAW`);
+      } else {
+        document.getElementById('configInput').value = content;
+        showToast(`✅ ${file.name} → Configurazione`);
+      }
+      addFileTag(file.name);
+    };
+    reader.readAsText(file);
+  }
+  document.getElementById('fileInput').value = '';
+}
+
+function updateDropHint() {
+  const dest = document.querySelector('input[name="fileDest"]:checked').value;
+  const hint = document.getElementById('dropHint');
+  if (dest === 'raw') {
+    hint.innerHTML = 'Il file verrà aggiunto al <strong>Contesto RAW</strong> come appunti';
+  } else {
+    hint.innerHTML = 'Il file verrà caricato come <strong>Configurazione</strong> (sostituisce il contenuto attuale)';
+  }
+  // Update radio button visual state
+  document.querySelectorAll('input[name="fileDest"]').forEach(r => {
+    const label = r.parentElement;
+    if (r.checked) {
+      label.style.background = 'var(--accent-soft)';
+      label.style.color = 'var(--accent)';
+    } else {
+      label.style.background = 'var(--surface-2)';
+      label.style.color = 'var(--text-dim)';
+    }
+  });
+}
+
+function addFileTag(name) {
+  const list = document.getElementById('fileList');
+  const tag = document.createElement('span');
+  tag.className = 'file-tag';
+  tag.innerHTML = `📄 ${name} <span class="remove" onclick="this.parentElement.remove()">×</span>`;
+  list.appendChild(tag);
+}
+
+// Drag & drop
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+
+// ─── AGENT SELECTOR (dual) ───
+
+function renderAgentSelectors() {
+  var el = document.getElementById('agentSelector');
+  if (!el) return;
+  el.innerHTML = AGENTS.map(a => {
+    var isSelected = selectedAgents.indexOf(a.id) !== -1;
+    return '<div class="agent-card ' + (isSelected ? 'selected' : '') + '" onclick="toggleAgent(\'' + a.id + '\')">' +
+      '<div class="check ' + (isSelected ? 'checked' : '') + '"></div>' +
+      '<div class="info">' +
+        '<div class="name">' + a.label + '</div>' +
+        '<div class="desc">' + a.desc + '</div>' +
+        '<div class="inputs">📥 ' + a.inputs + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function toggleAgent(id) {
+  const idx = selectedAgents.indexOf(id);
+  if (idx === -1) {
+    selectedAgents.push(id);
+  } else {
+    selectedAgents.splice(idx, 1);
+  }
+  renderAgentSelectors();
+  renderPipeline();
+  updatePromptReady();
+}
+
+function moveAgentUp(id) {
+  const idx = selectedAgents.indexOf(id);
+  if (idx > 0) {
+    [selectedAgents[idx-1], selectedAgents[idx]] = [selectedAgents[idx], selectedAgents[idx-1]];
+    renderAgentSelectors();
+    renderPipeline();
+  }
+}
+
+function moveAgentDown(id) {
+  const idx = selectedAgents.indexOf(id);
+  if (idx < selectedAgents.length - 1) {
+    [selectedAgents[idx], selectedAgents[idx+1]] = [selectedAgents[idx+1], selectedAgents[idx]];
+    renderAgentSelectors();
+    renderPipeline();
+  }
+}
+
+function renderPipeline() {
+  var el = document.getElementById('pipelineBar');
+  if (!el) return;
+  if (selectedAgents.length === 0) {
+    el.innerHTML = '<span class="empty">Nessun agente selezionato — clicca qui sopra per scegliere</span>';
+    return;
+  }
+  el.innerHTML = selectedAgents.map((id, i) => {
+    var agent = AGENTS.find(a => a.id === id);
+    if (!agent) return '';
+    var arrow = i < selectedAgents.length - 1 ? '<span class="arrow"> → </span>' : '';
+    return '<span class="step">' + agent.label + '</span>' + arrow;
+  }).join('');
+}
+
+function updatePromptReady() {
+  const badge = document.getElementById('promptReady');
+  if (selectedAgents.length > 0) {
+    badge.style.display = 'inline';
+    badge.textContent = selectedAgents.length;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ─── GENERATE PROMPT ───
+
+function generatePrompt() {
+  const config = document.getElementById('configInput').value.trim();
+  const raw = document.getElementById('rawContext').value.trim();
+
+  if (!config && !raw) {
+    showToast('⚠️ Inserisci almeno una configurazione o del contesto RAW');
+    return;
+  }
+  if (selectedAgents.length === 0) {
+    showToast('⚠️ Seleziona almeno un agente');
+    return;
+  }
+
+  const now = new Date().toLocaleString('it-IT');
+  const primaryAgent = AGENTS.find(a => a.id === selectedAgents[0]);
+
+  let prompt = '';
+
+  // Pipeline header
+  prompt += `═══════════════════════════════════\n`;
+  prompt += `PIPELINE RICHIESTA\n`;
+  prompt += `═══════════════════════════════════\n`;
+  prompt += selectedAgents.map((id, i) => {
+    const a = AGENTS.find(x => x.id === id);
+    return `  ${i+1}. ${a ? a.label : id}`;
+  }).join('\n');
+  prompt += '\n\n';
+
+  // Primary instruction
+  prompt += `Esegui **${primaryAgent ? primaryAgent.label : selectedAgents[0]}** su questa configurazione.\n\n`;
+
+  if (config) {
+    prompt += `═══════════════════════════════════\n`;
+    prompt += `CONFIGURAZIONE (sanitizzata)\n`;
+    prompt += `═══════════════════════════════════\n`;
+    prompt += config + '\n\n';
+  }
+
+  if (raw) {
+    prompt += `═══════════════════════════════════\n`;
+    prompt += `CONTESTO ATTIVITÀ (RAW)\n`;
+    prompt += `═══════════════════════════════════\n`;
+    prompt += raw + '\n\n';
+  }
+
+  prompt += `═══════════════════════════════════\n`;
+  prompt += `INFO AGGIUNTIVE\n`;
+  prompt += `═══════════════════════════════════\n`;
+  prompt += `Richiesto il: ${now}\n`;
+  prompt += `Pipeline completa: ${selectedAgents.length > 1 ? selectedAgents.map(id => { const a = AGENTS.find(x => x.id === id); return a ? a.label : id; }).join(' → ') : 'agente singolo'}\n`;
+  prompt += `La configurazione è già sanitizzata — IP e dati sensibili sono placeholder.\n`;
+  prompt += `Output atteso per questo agente: report strutturato con scenario, delta e dependency warnings.\n`;
+  if (selectedAgents.length > 1) {
+    prompt += `\nNota: dopo questo agente, passerò il risultato a: ${selectedAgents.slice(1).map(id => { const a = AGENTS.find(x => x.id === id); return a ? a.label : id; }).join(' → ')}`;
+  }
+
+  document.getElementById('promptOutput').textContent = prompt;
+  updatePromptReady();
+
+  switchTab('prompt');
+  showToast('✅ Prompt generato — pronto per l\'agente');
+  autoSaveSession();
+}
+
+// ─── COPY ───
+
+function copyPrompt() {
+  const el = document.getElementById('promptOutput');
+  const text = el.textContent;
+  if (!text || text.startsWith('Seleziona')) {
+    showToast('⚠️ Nessun prompt da copiare');
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('📋 Prompt copiato! Incollalo nella chat con Hermes.');
+  }).catch(() => {
+    const range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    showToast('📋 Selezionato — Copia (Ctrl+C)');
+  });
+}
+
+function selectText(el) {
+  const range = document.createRange();
+  range.selectNode(el);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(range);
+}
+
+// ─── CLEAR / EXAMPLE ───
+
+function clearContext() {
+  document.getElementById('rawContext').value = '';
+  document.getElementById('configInput').value = '';
+  document.getElementById('fileList').innerHTML = '';
+  selectedAgents = [];
+  renderAgentSelectors();
+  renderPipeline();
+  updatePromptReady();
+  showToast('🗑️ Tutto pulito');
+}
+
+function loadExample() {
+  document.getElementById('configInput').value =
+`service timestamps debug datetime msec localtime
+service timestamps log datetime msec localtime
+service password-encryption
+!
+hostname {{HOST_01}}
+!
+ntp server M.22.a.254
+ntp source Vlan7
+!
+aaa new-model
+aaa authentication login default group radius local
+!
+radius server RADIUS1
+ address ipv4 M.0.0.120 auth-port 1814 acct-port 1815
+ key {{RADIUS_KEY}}
+!
+username admin algorithm-type sha256 secret {{PWD_01}}
+!
+ip ssh version 2
+!
+interface GigabitEthernet0/0/0
+ description Link to PE-ISP1
+ ip address Pb.46.a.2 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/0/1
+ description Link to PE-ISP2
+ ip address Pb.46.b.2 255.255.255.252
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 Pb.46.a.1
+ip route 0.0.0.0 0.0.0.0 Pb.46.b.1 200
+!
+router bgp {{ASN_PUB_01}}
+ neighbor Pb.46.a.1 remote-as {{ASN_PUB_02}}
+ neighbor Pb.46.a.1 fall-over bfd
+ neighbor Pb.46.b.1 remote-as {{ASN_PUB_03}}
+ neighbor Pb.46.b.1 fall-over bfd
+!
+bfd-template multi-hop default
+ interval min-tx 50 min-rx 50 multiplier 3
+!
+ip sla 1
+ icmp-echo M.0.0.254
+ frequency 10
+!
+track 1 ip sla 1
+!
+snmp-server group FWRO v3 auth access 99
+logging M.0.0.76
+!
+end`;
+
+  document.getElementById('rawContext').value =
+`CLIENTE: TIM - Sede Milano - Migrazione Core Switch
+DA: Catalyst 2960X stack (2 switch, IOS 15.2)
+A: Catalyst 9300 stack (2 switch, IOS 17.9)
+FINESTRA: Sabato 02:00-06:00
+SERVIZI CRITICI: VoIP (200 utenti, jitter max 150ms), MPLS VPN verso DC, telecamere IP, badge
+VINCOLI:
+- Zero Downtime assoluto sul VoIP
+- Mantenere VLAN attuali (Dati=10, Voce=20, MGMT=7, Telecamere=30)
+- Nessun cambio indirizzamento IP
+NOTE TECNICHE:
+- Stack 2960X a 2 member (priority 15/10), cablaggio in anello
+- Licenze: IP Base → Network Advantage
+- SFP+ da verificare compatibilità
+- BFD non supportato sui 2960X → valutare dopo migrazione`;
+
+  selectedAgents = ['agent-discovery-assessment', 'agent-delta-analysis', 'agent-migration-planner', 'agent-mop-generator'];
+  renderAgentSelectors();
+  renderPipeline();
+  updatePromptReady();
+  showToast('📝 Esempio caricato');
+}
+
+// ─── REPORT PARSING ───
+
+function parseReport() {
+  const text = document.getElementById('reportInput').value.trim();
+  const out = document.getElementById('reportOutput');
+
+  if (!text) {
+    showToast('⚠️ Incolla prima il report');
+    return;
+  }
+
+  let html = '<div class="report-section">';
+
+  // Extract scenario
+  const scenarioMatch = text.match(/Scenario:\s*(.+?)(?:\s*\(confidence:\s*(\d+\.?\d*)%)/i);
+  const confidenceMatch = text.match(/confidence:\s*(\d+\.?\d*)%/i);
+
+  if (scenarioMatch || confidenceMatch) {
+    const scenario = scenarioMatch ? scenarioMatch[1].trim() : 'Sconosciuto';
+    const confidence = confidenceMatch ? parseFloat(confidenceMatch[1]) : 0;
+
+    let badgeClass = 'badge-scenario';
+    let label = scenario;
+    if (confidence < 60) { badgeClass = 'badge-critical'; label += ' ⚠️ bassa confidenza'; }
+    else if (confidence >= 85) { label += ' ✅ alta confidenza'; }
+
+    html += `<div class="stats-bar">
+      <div class="stat-item">
+        <span class="num"><span class="report-badge ${badgeClass}">${label}</span></span>
+        <span class="label">Scenario</span>
+      </div>`;
+
+    const gapCountMatch = text.match(/Gap rilevati:\s*(\d+)/i);
+    const critCountMatch = text.match(/(\d+)\s*critici/i);
+    const warnCountMatch = text.match(/Dependency warnings:\s*(\d+)/i);
+    const devTypeMatch = text.match(/Device:\s*(.+?)(?:\n|$)/i);
+
+    if (devTypeMatch) {
+      html += `<div class="stat-item">
+        <span class="num" style="font-size:1rem">${devTypeMatch[1].trim()}</span>
+        <span class="label">Device</span>
+      </div>`;
+    }
+    if (gapCountMatch) {
+      html += `<div class="stat-item">
+        <span class="num" style="color:${critCountMatch ? 'var(--red)' : 'var(--green)'}">${gapCountMatch[1]}</span>
+        <span class="label">Gap totali</span>
+      </div>`;
+    }
+    if (critCountMatch) {
+      html += `<div class="stat-item">
+        <span class="num" style="color:var(--red)">${critCountMatch[1]}</span>
+        <span class="label">Critici</span>
+      </div>`;
+    }
+    if (warnCountMatch) {
+      html += `<div class="stat-item">
+        <span class="num" style="color:var(--orange)">${warnCountMatch[1]}</span>
+        <span class="label">Warnings</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Delta table
+  const deltaSection = text.match(/## 🔍 Delta vs Standard[\s\S]*?(?=##|$)/);
+  if (deltaSection) {
+    const tableMatch = deltaSection[0].match(/\|.*\|.*\|.*\|.*\|.*\|(?:\n\|.*\|.*\|.*\|.*\|.*\|)+/);
+    if (tableMatch) {
+      html += '<h4 style="margin-top:16px;margin-bottom:8px;">🔍 Delta vs Standard</h4>';
+      html += '<table class="delta-table">';
+      const rows = tableMatch[0].split('\n').filter(r => r.trim());
+      rows.forEach((row, i) => {
+        if (i === 0 || i === 1) return; // skip header and separator
+        const cols = row.split('|').filter(c => c.trim());
+        if (cols.length >= 5) {
+          const priority = cols[4].trim();
+          let color = '';
+          if (priority.includes('🔴')) color = 'var(--red)';
+          else if (priority.includes('🟡')) color = 'var(--orange)';
+          else if (priority.includes('🟢')) color = 'var(--green)';
+          html += `<tr>
+            <td>${cols[0].trim()}</td>
+            <td>${cols[1].trim()}</td>
+            <td>${cols[2].trim()}</td>
+            <td>${cols[3].trim()}</td>
+            <td style="color:${color}; font-weight:600">${priority}</td>
+          </tr>`;
+        }
+      });
+      html += '</table>';
+    }
+  }
+
+  // Dependency warnings
+  const warnSection = text.match(/## ⚠️ Dependency Warnings[\s\S]*?(?=##|$)/);
+  if (warnSection) {
+    html += '<h4 style="margin-top:16px;margin-bottom:8px;">⚠️ Dependency Warnings</h4>';
+    const warns = warnSection[0].split('\n').filter(l => l.includes('**') || l.includes('🔴') || l.includes('🟡'));
+    if (warns.length > 0) {
+      html += '<ul style="font-size:0.85rem; list-style:none; padding:0;">';
+      warns.forEach(w => {
+        const clean = w.replace(/^\d+\.\s*/, '').trim();
+        if (clean) html += `<li style="padding:6px 8px; margin:4px 0; background:var(--surface-2); border-radius:4px;">${clean}</li>`;
+      });
+      html += '</ul>';
+    }
+  }
+
+  // Signals matched
+  const signalsSection = text.match(/### ✅ Segnali matchati[\s\S]*?(?=###|---|$)/);
+  if (signalsSection) {
+    html += '<h4 style="margin-top:16px;margin-bottom:8px;">✅ Segnali matchati</h4>';
+    const signals = signalsSection[0].split('\n').filter(l => l.includes('`'));
+    if (signals.length > 0) {
+      html += '<div style="display:flex; flex-wrap:wrap; gap:6px;">';
+      signals.forEach(s => {
+        const code = s.match(/`([^`]+)`/);
+        if (code) html += `<span class="report-badge badge-ok" style="background:var(--surface-2); color:var(--green);">${code[1]}</span>`;
+      });
+      html += '</div>';
+    }
+  }
+
+  // Sections found
+  const sectionsMatch = text.match(/### 📋 Sezioni config rilevate[\s\S]*?(?=\n###|---|$)/);
+  if (sectionsMatch) {
+    const line = sectionsMatch[0].split('\n').find(l => l.includes('`'));
+    if (line) {
+      html += '<h4 style="margin-top:16px;margin-bottom:8px;">📋 Sezioni rilevate</h4>';
+      html += `<div style="display:flex; flex-wrap:wrap; gap:6px;">`;
+      const sections = line.match(/`[^`]+`/g) || [];
+      sections.forEach(s => {
+        html += `<span class="report-badge badge-scenario" style="background:var(--surface-2);">${s}</span>`;
+      });
+      html += '</div>';
+    }
+  }
+
+  html += '</div>';
+
+  if (html === '<div class="report-section"></div>') {
+    html = `<div class="empty-state">
+      <span class="emoji">🤷</span>
+      Formato report non riconosciuto. Incolla l'output completo dell'agente.
+    </div>`;
+  }
+
+  out.innerHTML = html;
+  document.getElementById('btnDownloadMd').disabled = false;
+  document.getElementById('btnDownloadJson').disabled = false;
+  document.getElementById('reportSaveStatus').innerHTML = '';
+  showToast('📊 Report analizzato');
+  autoSaveReport();
+  validateResponse();
+}
+
+// ─── AGENT DETAIL GRID (Legenda) ───
+
+function renderAgentDetail() {
+  const grid = document.getElementById('agentDetailGrid');
+  grid.innerHTML = AGENTS.map(a => `
+    <div class="agent-detail-card">
+      <div class="name">${a.label}</div>
+      <div class="desc">${a.desc}</div>
+      <div class="meta">
+        <span class="tag ${a.priority === 'Alta' ? 'tag-alt' : 'tag-med'}">${a.priority === 'Alta' ? '🔴 ' : '🟡 '}Priorità ${a.priority}</span>
+        <span class="tag tag-info">📥 ${a.inputs}</span>
+        <span class="tag tag-info">${a.next}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── INIT ───
+
+renderAgentSelectors();
+renderPipeline();
+renderAgentDetail();
+updatePromptReady();
+initDiffDropZones();
+
+// ─── TOAST ───
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ─── CONFIG DIFF ───
+
+function initDiffDropZones() {
+  ['A','B'].forEach(side => {
+    const zone = document.getElementById('diffZone' + side);
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length > 0) diffLoadFile(e.dataTransfer.files[0], side);
+    });
+  });
+}
+
+function diffHandleFile(input, side) {
+  if (input.files.length > 0) diffLoadFile(input.files[0], side);
+  input.value = '';
+}
+
+function diffLoadFile(file, side) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = { name: file.name, size: file.size, content: e.target.result };
+    if (side === 'A') diffConfigA = data; else diffConfigB = data;
+    renderDiffZone(side, data);
+    updateDiffCompareBar();
+  };
+  reader.readAsText(file);
+}
+
+function renderDiffZone(side, data) {
+  const zone = document.getElementById('diffZone' + side);
+  zone.classList.add('has-file');
+  zone.onclick = null;
+  const lines = data.content.split('\n');
+  const preview = lines.slice(0, 10).join('\n') + (lines.length > 10 ? '\n...' : '');
+  const sizeStr = data.size < 1024 ? data.size + ' B' : (data.size/1024).toFixed(1) + ' KB';
+  const sideClass = side === 'A' ? 'dz-side-a' : 'dz-side-b';
+  const sideLabel = side === 'A' ? 'Config A — Legacy / AS-IS' : 'Config B — Nuova / TO-BE';
+  zone.innerHTML = '<div class="diff-file-info">' +
+    '<div><span class="dz-side ' + sideClass + '">' + sideLabel + '</span><br><span class="fname">\ud83d\udcc4 ' + data.name + '</span> <span class="fmeta">' + sizeStr + ' \u00b7 ' + lines.length + ' righe</span></div>' +
+    '<button class="btn-remove" onclick="event.stopPropagation(); diffRemoveFile(\'' + side + '\')">\u2715 Rimuovi</button>' +
+    '</div>' +
+    '<div class="diff-preview">' + escHtml(preview) + '</div>';
+}
+
+function diffRemoveFile(side) {
+  if (side === 'A') diffConfigA = null; else diffConfigB = null;
+  const zone = document.getElementById('diffZone' + side);
+  zone.classList.remove('has-file');
+  const isA = side === 'A';
+  zone.innerHTML = '<span class="dz-icon">' + (isA ? '\ud83d\udce4' : '\ud83d\udce5') + '</span>' +
+    '<div class="dz-side ' + (isA ? 'dz-side-a' : 'dz-side-b') + '">Config ' + side + ' \u2014 ' + (isA ? 'Legacy / AS-IS' : 'Nuova / TO-BE') + '</div>' +
+    '<div class="dz-label">Trascina qui o <strong>clicca per sfogliare</strong></div>' +
+    '<div class="dz-hint">.txt .cfg .conf .config</div>';
+  zone.onclick = () => document.getElementById('diffFile' + side).click();
+  updateDiffCompareBar();
+  document.getElementById('diffResults').innerHTML = '';
+}
+
+function updateDiffCompareBar() {
+  const bar = document.getElementById('diffCompareBar');
+  bar.style.display = (diffConfigA && diffConfigB) ? 'block' : 'none';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── DIFF ENGINE ───
+
+var DIFF_CATEGORIES = [
+  { id: 'l2sec',    icon: '\ud83d\udd12', name: 'Sicurezza L2',  keywords: ['port-security','access-list','ip access','dot1x','authentication','mab','auth','storm-control','dhcp snooping','ip source guard','dynamic arp','arp inspection','portfast bpduguard'] },
+  { id: 'stp',      icon: '\ud83c\udf10', name: 'STP',           keywords: ['spanning-tree','stp','root','priority','guard','bpdu','loopguard','rootguard','uplinkfast','backbonefast','mst','rapid-pvst','mode pvst'] },
+  { id: 'routing',  icon: '\ud83d\udce1', name: 'Routing',       keywords: ['router bgp','router ospf','router eigrp','router isis','ip route','ip prefix','route-map','neighbor','redistribute','network ','bfd','ip sla','track','vrf','ip vrf'] },
+  { id: 'vlan',     icon: '\ud83d\udd17', name: 'VLAN',          keywords: ['vlan ','switchport','interface vlan','name ','trunk','access vlan','voice vlan','native vlan','vtp','vlan database'] },
+  { id: 'hardening',icon: '\ud83d\udee1\ufe0f', name: 'Hardening',    keywords: ['snmp','logging','ntp','aaa','tacacs','radius','username','password','secret','enable secret','service password','ip ssh','banner','exec-timeout','login','privilege','crypto','ssh','https','access-class','log-buffer'] },
+  { id: 'qos',      icon: '\u26a1', name: 'QoS',           keywords: ['policy-map','class-map','service-policy','qos','cos','dscp','priority','bandwidth','shape','police','queue','mls qos','auto-qos','codec','voice-class'] },
+];
+
+function categorizeLine(line) {
+  var lower = line.trim().toLowerCase();
+  if (!lower || lower === '!' || lower === 'end') return null;
+  for (var ci = 0; ci < DIFF_CATEGORIES.length; ci++) {
+    var cat = DIFF_CATEGORIES[ci];
+    for (var ki = 0; ki < cat.keywords.length; ki++) {
+      if (lower.includes(cat.keywords[ki])) return cat.id;
+    }
+  }
+  return null;
+}
+
+function classifyLines(linesA, linesB) {
+  var setA = new Set(); var arrA = [];
+  var setB = new Set(); var arrB = [];
+  linesA.forEach(function(l) { var t = l.trim(); if (t && t !== '!' && t !== 'end') { setA.add(t); arrA.push(t); } });
+  linesB.forEach(function(l) { var t = l.trim(); if (t && t !== '!' && t !== 'end') { setB.add(t); arrB.push(t); } });
+  var result = {};
+  DIFF_CATEGORIES.forEach(function(c) { result[c.id] = { added: [], removed: [], modified: [], identical: [] }; });
+  result._uncategorized = { added: [], removed: [], modified: [], identical: [] };
+
+  var consumedA = new Set();
+
+  arrB.forEach(function(line) {
+    if (setA.has(line)) {
+      var cat = categorizeLine(line) || '_uncategorized';
+      result[cat].identical.push(line);
+    } else {
+      var isMod = false;
+      var bParts = line.split(/\s+/);
+      var bBase = bParts.slice(0, Math.min(3, bParts.length)).join(' ');
+      for (var ai = 0; ai < arrA.length; ai++) {
+        var aLine = arrA[ai];
+        if (consumedA.has(aLine) || setB.has(aLine)) continue;
+        var aParts = aLine.split(/\s+/);
+        var aBase = aParts.slice(0, Math.min(3, aParts.length)).join(' ');
+        if (aBase === bBase && aLine !== line) {
+          var cat2 = categorizeLine(line) || '_uncategorized';
+          result[cat2].modified.push({ a: aLine, b: line });
+          consumedA.add(aLine);
+          isMod = true;
+          break;
+        }
+      }
+      if (!isMod) {
+        var cat3 = categorizeLine(line) || '_uncategorized';
+        result[cat3].added.push(line);
+      }
+    }
+  });
+
+  arrA.forEach(function(line) {
+    if (!setB.has(line) && !consumedA.has(line)) {
+      var cat = categorizeLine(line) || '_uncategorized';
+      result[cat].removed.push(line);
+    }
+  });
+
+  return result;
+}
+
+function runDiff() {
+  if (!diffConfigA || !diffConfigB) return;
+
+  var results = document.getElementById('diffResults');
+  results.innerHTML = '<div class="diff-loading"><div class="spinner"></div><br>Analisi in corso...</div>';
+
+  setTimeout(function() {
+    var classified = classifyLines(diffConfigA.content.split('\n'), diffConfigB.content.split('\n'));
+
+    var totalAdded = 0, totalRemoved = 0, totalModified = 0, totalIdentical = 0;
+    DIFF_CATEGORIES.forEach(function(c) {
+      var d = classified[c.id];
+      totalAdded += d.added.length;
+      totalRemoved += d.removed.length;
+      totalModified += d.modified.length;
+      totalIdentical += d.identical.length;
+    });
+    var unc = classified._uncategorized;
+    totalAdded += unc.added.length;
+    totalRemoved += unc.removed.length;
+    totalModified += unc.modified.length;
+    totalIdentical += unc.identical.length;
+
+    var totalLines = totalAdded + totalRemoved + totalModified + totalIdentical;
+    var simPct = totalLines > 0 ? Math.round((totalIdentical / totalLines) * 100) : 100;
+    var simClass = simPct >= 90 ? 'diff-sim-green' : simPct >= 70 ? 'diff-sim-yellow' : 'diff-sim-red';
+
+    var html = '';
+
+    html += '<div class="diff-summary">';
+    html += '<div class="diff-summary-grid">';
+    html += '<span class="diff-sim-badge ' + simClass + '">\ud83c\udfaf Similarit\u00e0: ' + simPct + '%</span>';
+    html += '<span class="diff-stat-chip" style="color:var(--green)">+' + totalAdded + ' aggiunte</span>';
+    html += '<span class="diff-stat-chip" style="color:var(--red)">-' + totalRemoved + ' rimosse</span>';
+    html += '<span class="diff-stat-chip" style="color:var(--orange)">~' + totalModified + ' modificate</span>';
+    html += '<span class="diff-stat-chip" style="color:var(--text-dim)">=' + totalIdentical + ' identiche</span>';
+    html += '</div></div>';
+
+    DIFF_CATEGORIES.forEach(function(cat) {
+      var d = classified[cat.id];
+      var hasChanges = d.added.length + d.removed.length + d.modified.length > 0;
+      html += renderDiffCategory(cat, d, hasChanges);
+    });
+
+    if (unc.added.length + unc.removed.length + unc.modified.length > 0) {
+      html += renderDiffCategory({ id: '_uncat', icon: '\ud83d\udccb', name: 'Altro' }, unc, true);
+    }
+
+    html += '<!-- FALLBACK: dati simulati per test offline -->';
+
+    results.innerHTML = html;
+    showToast('\ud83d\udcca Diff completato \u2014 ' + simPct + '% similarit\u00e0');
+  }, 800);
+}
+
+function renderDiffCategory(cat, data, openByDefault) {
+  var total = data.added.length + data.removed.length + data.modified.length + data.identical.length;
+  if (total === 0) return '';
+
+  var badges = [];
+  if (data.added.length) badges.push('<span class="cat-badge cb-add">+' + data.added.length + '</span>');
+  if (data.removed.length) badges.push('<span class="cat-badge cb-rem">-' + data.removed.length + '</span>');
+  if (data.modified.length) badges.push('<span class="cat-badge cb-mod">~' + data.modified.length + '</span>');
+  if (data.identical.length) badges.push('<span class="cat-badge cb-same">=' + data.identical.length + '</span>');
+
+  var openClass = openByDefault ? ' open' : '';
+
+  var body = '';
+  data.added.forEach(function(line) {
+    body += '<div class="diff-line added"><span class="line-prefix">+</span>' + escHtml(line) + '</div>';
+  });
+  data.removed.forEach(function(line) {
+    body += '<div class="diff-line removed"><span class="line-prefix">-</span>' + escHtml(line) + '</div>';
+  });
+  data.modified.forEach(function(mod) {
+    body += '<div class="diff-line removed"><span class="line-prefix">-</span>' + escHtml(mod.a) + '</div>';
+    body += '<div class="diff-line added"><span class="line-prefix">+</span>' + escHtml(mod.b) + '</div>';
+  });
+  if (data.identical.length > 0) {
+    body += '<button class="diff-toggle-identical" onclick="toggleIdentical(this)">\u25b8 Mostra ' + data.identical.length + ' righe identiche</button>';
+    body += '<div class="diff-identical-block" style="display:none;">';
+    data.identical.forEach(function(line) {
+      body += '<div class="diff-line identical"><span class="line-prefix"> </span>' + escHtml(line) + '</div>';
+    });
+    body += '</div>';
+  }
+
+  return '<div class="diff-cat-section">' +
+    '<div class="diff-cat-header' + openClass + '" onclick="toggleDiffCat(this)">' +
+    '<span class="cat-icon">' + cat.icon + '</span>' +
+    '<span class="cat-name">' + cat.name + '</span>' +
+    '<span class="cat-badges">' + badges.join('') + '</span>' +
+    '<span class="cat-arrow">\u25b6</span>' +
+    '</div>' +
+    '<div class="diff-cat-body' + openClass + '">' + body + '</div>' +
+    '</div>';
+}
+
+function toggleDiffCat(header) {
+  header.classList.toggle('open');
+  var body = header.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+function toggleIdentical(btn) {
+  var block = btn.nextElementSibling;
+  var visible = block.style.display !== 'none';
+  block.style.display = visible ? 'none' : 'block';
+  var count = block.querySelectorAll('.diff-line').length;
+  btn.textContent = visible ? '▸ Mostra ' + count + ' righe identiche' : '▾ Nascondi ' + count + ' righe identiche';
+}
+
+// ─── EXPORT PER AGENTI NETWORKING ───
+
+var SKILL_MAP = {
+  cisco: {
+    switch: ['cisco-standard-switch-base','cisco-standard-switch-lan','cisco-standard-etherchannel'],
+    router: ['cisco-standard-wan-config','cisco-standard-nat-pat','cisco-standard-bfd','cisco-qos-policy'],
+    defaults: ['cisco-standard-logging','cisco-standard-ntp','cisco-standard-radius-aaa','cisco-standard-management','cisco-smart-licensing']
+  },
+  huawei: {
+    switch: ['huawei-standard-switch-base','huawei-standard-switch-lan','huawei-standard-switch-commands'],
+    router: ['huawei-standard-wan-config','huawei-standard-nat-pat'],
+    defaults: ['huawei-standard-logging','huawei-standard-ntp','huawei-standard-radius-aaa','huawei-standard-management']
+  },
+  bgp: {
+    cisco:  ['cisco-bgp-lan-customer-z','cisco-bgp-lan-customer-a'],
+    huawei: ['huawei-bgp-lan-customer-z','huawei-bgp-lan-customer-a']
+  },
+  routing: {
+    cisco:  ['ip-sla-migration','change-management-static-routes'],
+    huawei: ['huawei-standard-routing-scenario-z','huawei-standard-routing-scenario-a','huawei-standard-routing-scenario-c']
+  },
+  migration: ['migration-as-is-to-be','migration-mop-generation','migration-vrf-client-vpn'],
+  discovery: ['discovery-matcher'],
+  docs:     ['network-diagram-prompting','network-project-orchestrator']
+};
+
+var AGENT_TO_SKILL_CATEGORY = {
+  'agent-discovery-assessment':  ['discovery'],
+  'agent-delta-analysis':        ['discovery'],
+  'agent-document-scaffolding':  ['docs'],
+  'agent-cli-templating':        [],
+  'agent-mop-generator':         ['migration'],
+  'agent-migration-planner':     ['migration'],
+  'agent-vendor-translation':    []
+};
+
+function detectVendor(config) {
+  var c = config.toLowerCase();
+  var ciscoScore = 0, huaweiScore = 0;
+  var ciscoKw = ['cisco','catalyst','nexus','interface gigabitethernet','router bgp','ip route','ip ssh','aaa new-model','spanning-tree vlan','switchport','ip access-list','bfd-template','ip sla','snmp-server','logging ','ntp server','service password','enable secret','username ','line vty','ip http','crypto key'];
+  var huaweiKw = ['huawei','vrp','interface vlanif','display ','undo ','sysname','stelnet','hwtacacs','local-user','authentication-mode','speed auto','duplex auto','dhcp enable','vlan batch','port link-type','port default vlan','voice-vlan','ntp-service','snmp-agent','info-center','radius-server','acl number','traffic classifier','traffic behavior'];
+
+  for (var i = 0; i < ciscoKw.length; i++) {
+    if (c.indexOf(ciscoKw[i]) !== -1) ciscoScore++;
+  }
+  for (var j = 0; j < huaweiKw.length; j++) {
+    if (c.indexOf(huaweiKw[j]) !== -1) huaweiScore++;
+  }
+
+  if (ciscoScore > huaweiScore && ciscoScore >= 3) return 'cisco';
+  if (huaweiScore > ciscoScore && huaweiScore >= 3) return 'huawei';
+  if (ciscoScore > 0 && huaweiScore > 0) return 'mixed';
+  return null;
+}
+
+function detectDeviceType(config) {
+  var c = config.toLowerCase();
+  var switchScore = 0, routerScore = 0;
+  var switchKw = ['switchport','spanning-tree','vlan','voice vlan','port-security','poe','lldp run','vtp','mac address-table','storm-control','portfast','bpduguard','stack','stackwise','port link-type','port default vlan'];
+  var routerKw = ['router bgp','router ospf','router eigrp','router isis','ip route 0.0.0.0','bfd','ip sla','nat','redistribute','route-map','neighbor ','vrf','ip vrf','mpls','l2vpn','xconnect'];
+
+  for (var i = 0; i < switchKw.length; i++) {
+    if (c.indexOf(switchKw[i]) !== -1) switchScore++;
+  }
+  for (var j = 0; j < routerKw.length; j++) {
+    if (c.indexOf(routerKw[j]) !== -1) routerScore++;
+  }
+
+  if (switchScore > routerScore && switchScore >= 2) return 'switch';
+  if (routerScore > switchScore && routerScore >= 2) return 'router';
+  if (switchScore > 0 && routerScore > 0) return 'switch'; // default a switch se ibrido (es. L3 switch)
+  return 'unknown';
+}
+
+function hasFeature(config, featureKw) {
+  var c = config.toLowerCase();
+  for (var i = 0; i < featureKw.length; i++) {
+    if (c.indexOf(featureKw[i]) !== -1) return true;
+  }
+  return false;
+}
+
+function getNetworkingSkills(vendor, deviceType, agentIds) {
+  var skills = [];
+  var seen = {};
+
+  function add(arr) {
+    if (!arr) return;
+    for (var i = 0; i < arr.length; i++) {
+      if (!seen[arr[i]]) { seen[arr[i]] = true; skills.push(arr[i]); }
+    }
+  }
+
+  var config = document.getElementById('configInput').value;
+
+  // Base skills per vendor + device type
+  if (vendor && SKILL_MAP[vendor]) {
+    add(SKILL_MAP[vendor].defaults);
+    if (deviceType && SKILL_MAP[vendor][deviceType]) {
+      add(SKILL_MAP[vendor][deviceType]);
+    }
+  }
+
+  // Feature detection
+  if (vendor && hasFeature(config, ['router bgp','bgp ','neighbor','remote-as'])) {
+    add(SKILL_MAP.bgp && SKILL_MAP.bgp[vendor]);
+  }
+  if (vendor && hasFeature(config, ['ip sla','track ','icmp-echo'])) {
+    if (SKILL_MAP.routing && SKILL_MAP.routing[vendor]) add(SKILL_MAP.routing[vendor]);
+  }
+  if (hasFeature(config, ['bfd','fall-over bfd','bfd-template'])) {
+    add(['cisco-standard-bfd']);
+  }
+  if (hasFeature(config, ['etherchannel','port-channel','channel-group','lacp','pagp'])) {
+    add(['cisco-standard-etherchannel']);
+  }
+  if (hasFeature(config, ['qos','policy-map','class-map','service-policy','dscp','priority','bandwidth'])) {
+    add(['cisco-qos-policy']);
+  }
+  if (hasFeature(config, ['dmvpn','tunnel protection','nhrp'])) {
+    add(['dmvpn-design']);
+  }
+
+  // Agent-based skills
+  for (var ai = 0; ai < agentIds.length; ai++) {
+    var cats = AGENT_TO_SKILL_CATEGORY[agentIds[ai]];
+    if (cats) {
+      for (var ci = 0; ci < cats.length; ci++) {
+        add(SKILL_MAP[cats[ci]]);
+      }
+    }
+  }
+
+  // If migration agents selected, also add vendor-specific standard skills for completeness
+  var hasMigration = agentIds.some(function(id) { return id === 'agent-migration-planner' || id === 'agent-mop-generator'; });
+  if (hasMigration && skills.length < 5) {
+    // Ensure at least the defaults are included
+    if (vendor && SKILL_MAP[vendor]) add(SKILL_MAP[vendor].defaults);
+  }
+
+  return skills;
+}
+
+function exportForNetworkingSkills() {
+  var config = document.getElementById('configInput').value.trim();
+  var raw = document.getElementById('rawContext').value.trim();
+
+  if (!config && !raw) {
+    showToast('⚠️ Genera prima il prompt (Inserisci configurazione + contesto)');
+    return;
+  }
+  if (selectedAgents.length === 0) {
+    showToast('⚠️ Seleziona almeno un agente prima di esportare');
+    return;
+  }
+
+  var vendor = detectVendor(config);
+  var deviceType = detectDeviceType(config);
+  var skills = getNetworkingSkills(vendor, deviceType, selectedAgents.map(function(a) { return a; }));
+
+  // Build export prompt
+  var now = new Date().toLocaleString('it-IT');
+  var vendorLabel = vendor === 'cisco' ? 'Cisco' : vendor === 'huawei' ? 'Huawei' : (vendor === 'mixed' ? 'Misto' : 'Non rilevato');
+  var deviceLabel = deviceType === 'switch' ? 'Switch' : deviceType === 'router' ? 'Router/CPE' : 'Dispositivo generico';
+
+  var prompt = '';
+  prompt += '═══════════════════════════════════\n';
+  prompt += 'EXPORT AGENTI NETWORKING\n';
+  prompt += '═══════════════════════════════════\n';
+  prompt += 'Vendor rilevato:  ' + vendorLabel + '\n';
+  prompt += 'Dispositivo:      ' + deviceLabel + '\n';
+  prompt += 'Agenti originali: ' + selectedAgents.map(function(id) { var a = AGENTS.find(function(x) { return x.id === id; }); return a ? a.label : id; }).join(' → ') + '\n';
+  prompt += 'Skill mappate:    ' + skills.join(', ') + '\n';
+  prompt += '\n';
+  prompt += '═══════════════════════════════════\n';
+  prompt += 'ISTRUZIONI\n';
+  prompt += '═══════════════════════════════════\n';
+  prompt += 'Usa ESCLUSIVAMENTE questi skill Hermes per processare la configurazione:\n\n';
+  for (var si = 0; si < skills.length; si++) {
+    prompt += '  ' + (si+1) + '. ' + skills[si] + '\n';
+  }
+  prompt += '\n';
+  prompt += 'Ogni skill deve essere caricata con skill_view(name="<nome skill>") prima di essere usata.\n';
+  prompt += 'Esegui gli skill in pipeline, passando l\'output del primo come input del secondo.\n';
+  prompt += '\n';
+
+  if (config) {
+    prompt += '═══════════════════════════════════\n';
+    prompt += 'CONFIGURAZIONE (sanitizzata)\n';
+    prompt += '═══════════════════════════════════\n';
+    prompt += config + '\n\n';
+  }
+
+  if (raw) {
+    prompt += '═══════════════════════════════════\n';
+    prompt += 'CONTESTO ATTIVITÀ (RAW)\n';
+    prompt += '═══════════════════════════════════\n';
+    prompt += raw + '\n\n';
+  }
+
+  prompt += '═══════════════════════════════════\n';
+  prompt += 'OUTPUT RICHIESTO\n';
+  prompt += '═══════════════════════════════════\n';
+  prompt += '1. Analisi della configurazione (scenario, gap, criticità)\n';
+  prompt += '2. Configurazione generata/validata secondo gli standard vendor\n';
+  prompt += '3. Se applicabile: MOP per applicazione, delta rispetto allo standard\n';
+  prompt += '4. Formato: JSON strutturato importabile da Harbor Net Console\n';
+  prompt += '\n';
+  prompt += 'Richiesto il: ' + now + '\n';
+  prompt += 'Pipeline skill: ' + skills.join(' → ') + '\n';
+
+  // Render in UI
+  var vClass = 'eb-vendor-' + (vendor || 'unknown');
+  var dClass = 'eb-device-' + (deviceType || 'unknown');
+
+  var html = '<div class="export-section">' +
+    '<div class="export-header">' +
+      '<span class="export-badge ' + vClass + '">🏭 ' + vendorLabel + '</span>' +
+      '<span class="export-badge ' + dClass + '">📦 ' + deviceLabel + '</span>' +
+      '<span style="font-size:0.75rem; color:var(--text-dim);">' + skills.length + ' skill mappate</span>' +
+    '</div>' +
+    '<div class="skill-list">' +
+      skills.map(function(s) { return '<span class="skill-chip" title="Skill Hermes networking">' + s + '</span>'; }).join('') +
+    '</div>' +
+    '<div class="export-prompt-output" id="exportPromptOutput" onclick="selectText(this)">' + escHtml(prompt) + '</div>' +
+    '<div class="export-actions">' +
+      '<button class="btn btn-primary" onclick="copyExportPrompt()">📋 Copia Prompt Networking</button>' +
+      '<button class="btn btn-accent" onclick="sendToHermes(\'export\')">🚀 Invia ad Hermes</button>' +
+      '<button class="btn" onclick="document.getElementById(\'exportOutput\').innerHTML=\'\'">🗑️ Nascondi</button>' +
+    '</div>' +
+  '</div>';
+
+  document.getElementById('exportOutput').innerHTML = html;
+  document.getElementById('exportOutput').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  showToast('✅ Export generato — ' + skills.length + ' skill mappate');
+}
+
+function copyExportPrompt() {
+  var el = document.getElementById('exportPromptOutput');
+  if (!el) return;
+  var text = el.textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('📋 Prompt networking copiato! Incollalo nella chat con Hermes.');
+  }).catch(function() {
+    var range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    showToast('📋 Selezionato — Copia (Ctrl+C)');
+  });
+}
+
+// ─── INVIO AD HERMES ───
+
+function sendToHermes(source) {
+  var promptText = '';
+  if (source === 'standard') {
+    var el = document.getElementById('promptOutput');
+    promptText = el ? el.textContent : '';
+    if (!promptText || promptText.indexOf('Seleziona uno o più agenti') === 0) {
+      showToast('⚠️ Genera prima il prompt dal tab Input & Context');
+      return;
+    }
+  } else {
+    var el2 = document.getElementById('exportPromptOutput');
+    promptText = el2 ? el2.textContent : '';
+    if (!promptText) {
+      showToast('⚠️ Genera prima l\'export per agenti networking');
+      return;
+    }
+  }
+
+  // Mostra overlay
+  var overlay = document.getElementById('hermesOverlay');
+  var submsg = document.getElementById('hermesOverlaySub');
+  overlay.classList.add('active');
+  submsg.textContent = 'Invio prompt' + (source === 'export' ? ' networking' : '') + ' a Hermes... Può richiedere fino a 2 minuti.';
+
+  // Abort controller per cancellazione
+  hermesAbortController = new AbortController();
+  var timeoutId = setTimeout(function() {
+    hermesAbortController.abort();
+  }, 125000); // 125s timeout lato client (il server ha 120s)
+
+  fetch('/api/hermes/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: promptText }),
+    signal: hermesAbortController.signal
+  })
+  .then(function(res) {
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      return res.json().then(function(err) {
+        throw new Error(err.details || err.error || 'HTTP ' + res.status);
+      });
+    }
+    return res.json();
+  })
+  .then(function(data) {
+    overlay.classList.remove('active');
+    hermesAbortController = null;
+
+    var result = data.result || '(nessuna risposta)';
+
+    // Inserisci nel Tab Report
+    document.getElementById('reportInput').value = result;
+    document.getElementById('reportOutput').innerHTML = '';
+
+    // Switcha al Tab Report
+    switchTab('report');
+
+    // Auto-parse
+    setTimeout(function() { parseReport(); }, 100);
+
+    showToast('✅ Risposta ricevuta — report analizzato');
+    // Auto-save report to vault (handled inside parseReport → autoSaveReport)
+  })
+  .catch(function(err) {
+    clearTimeout(timeoutId);
+    overlay.classList.remove('active');
+    hermesAbortController = null;
+
+    if (err.name === 'AbortError') {
+      showToast('⏹️ Invio annullato');
+    } else {
+      showToast('❌ Errore: ' + (err.message || 'Impossibile contattare Hermes'));
+    }
+  });
+}
+
+function cancelHermesSend() {
+  if (hermesAbortController) {
+    hermesAbortController.abort();
+    hermesAbortController = null;
+  }
+  var overlay = document.getElementById('hermesOverlay');
+  overlay.classList.remove('active');
+  showToast('⏹️ Invio annullato');
+}
+
+// ─── SESSION MANAGEMENT ───
+
+var SESSION_KEY = 'hermes-netconsole-session';
+var autoSaveTimeout = null;
+
+function saveSession() {
+  var data = {
+    config: document.getElementById('configInput').value,
+    context: document.getElementById('rawContext').value,
+    agents: selectedAgents,
+    savedAt: new Date().toISOString()
+  };
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    updateSessionUI(true);
+    showToast('💾 Sessione salvata');
+  } catch(e) {
+    showToast('⚠️ Impossibile salvare (localStorage pieno?)');
+  }
+}
+
+function loadSession() {
+  try {
+    var raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) { showToast('⚠️ Nessuna sessione salvata'); return; }
+    var data = JSON.parse(raw);
+    document.getElementById('configInput').value = data.config || '';
+    document.getElementById('rawContext').value = data.context || '';
+    selectedAgents = data.agents || [];
+    renderAgentSelectors();
+    renderPipeline();
+    updatePromptReady();
+    updateSessionUI(true);
+    showToast('📂 Sessione caricata');
+  } catch(e) {
+    showToast('⚠️ Errore nel caricamento sessione');
+  }
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    updateSessionUI(false);
+    showToast('🗑️ Sessione cancellata');
+  } catch(e) {}
+}
+
+function autoSaveSession() {
+  if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+  autoSaveTimeout = setTimeout(function() { saveSession(); }, 2000);
+}
+
+function updateSessionUI(hasSaved) {
+  var btn = document.getElementById('btnSaveSession');
+  var label = document.getElementById('sessionSavedAt');
+  if (hasSaved) {
+    btn.classList.remove('unsaved');
+    btn.textContent = '💾 Salvato';
+    try {
+      var raw = localStorage.getItem(SESSION_KEY);
+      if (raw) {
+        var data = JSON.parse(raw);
+        var d = new Date(data.savedAt);
+        label.textContent = 'Salvato alle ' + d.toLocaleTimeString('it-IT');
+      }
+    } catch(e) { label.textContent = 'Salvato'; }
+  } else {
+    btn.classList.add('unsaved');
+    btn.textContent = '💾 Salva';
+    label.textContent = 'Mai salvata';
+  }
+}
+
+function restoreSessionOnLoad() {
+  try {
+    var raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    if (data.config || data.context) {
+      document.getElementById('configInput').value = data.config || '';
+      document.getElementById('rawContext').value = data.context || '';
+      if (data.agents) {
+        selectedAgents = data.agents;
+        renderAgentSelectors();
+        renderPipeline();
+        updatePromptReady();
+      }
+      updateSessionUI(true);
+    }
+  } catch(e) {}
+}
+
+// Auto-save listeners sugli input
+document.getElementById('configInput').addEventListener('input', function() { autoSaveSession(); });
+document.getElementById('rawContext').addEventListener('input', function() { autoSaveSession(); });
+
+// ─── PRESET MANAGEMENT ───
+
+var BUILTIN_PRESETS = {
+  'migration': {
+    name: '🔄 Migrazione apparato',
+    agents: ['agent-discovery-assessment','agent-delta-analysis','agent-migration-planner','agent-mop-generator']
+  },
+  'audit': {
+    name: '🛡️ Audit Sicurezza',
+    agents: ['agent-discovery-assessment','agent-delta-analysis','agent-mop-generator']
+  },
+  'new-cpe': {
+    name: '🆕 Nuovo CPE standard',
+    agents: ['agent-discovery-assessment','agent-cli-templating','agent-mop-generator']
+  },
+  'vendor-change': {
+    name: '🌐 Cambio vendor',
+    agents: ['agent-discovery-assessment','agent-vendor-translation','agent-cli-templating']
+  }
+};
+
+var PRESETS_KEY = 'hermes-netconsole-presets';
+
+function getUserPresets() {
+  try {
+    var raw = localStorage.getItem(PRESETS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveUserPresets(presets) {
+  try {
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+  } catch(e) {}
+}
+
+function savePreset() {
+  if (selectedAgents.length === 0) {
+    showToast('⚠️ Seleziona almeno un agente prima di salvare');
+    return;
+  }
+  var name = prompt('Nome del preset:', 'Mio Preset');
+  if (!name || !name.trim()) return;
+  name = name.trim();
+  var presets = getUserPresets();
+  presets[name] = selectedAgents.slice();
+  saveUserPresets(presets);
+  renderPresets();
+  showToast('💾 Preset "' + name + '" salvato');
+}
+
+function loadPreset(id) {
+  var agents;
+  // Controlla built-in
+  if (BUILTIN_PRESETS[id]) {
+    agents = BUILTIN_PRESETS[id].agents.slice();
+  } else {
+    var presets = getUserPresets();
+    agents = presets[id];
+  }
+  if (!agents) { showToast('⚠️ Preset non trovato'); return; }
+  selectedAgents = agents.slice();
+  renderAgentSelectors();
+  renderPipeline();
+  updatePromptReady();
+  autoSaveSession();
+  switchTab('input');
+  showToast('📌 Preset caricato');
+}
+
+function deletePreset(name) {
+  if (!confirm('Eliminare il preset "' + name + '"?')) return;
+  var presets = getUserPresets();
+  delete presets[name];
+  saveUserPresets(presets);
+  renderPresets();
+  showToast('🗑️ Preset eliminato');
+}
+
+function renderPresets() {
+  var el = document.getElementById('presetList');
+  if (!el) return;
+  var presets = getUserPresets();
+  var presetNames = Object.keys(presets);
+  var html = '';
+
+  // Built-in presets
+  Object.keys(BUILTIN_PRESETS).forEach(function(id) {
+    var p = BUILTIN_PRESETS[id];
+    var agentLabels = p.agents.map(function(aid) { var a = AGENTS.find(function(x) { return x.id === aid; }); return a ? a.label.split(' ')[0] : aid; }).join(' → ');
+    html += '<div class="preset-card" style="margin-bottom:8px;" onclick="loadPreset(\'' + id + '\')">' +
+      '<div>' +
+        '<div class="preset-name">' + p.name + ' <span style="font-size:0.65rem;color:var(--teal);">(predefinito)</span></div>' +
+        '<div class="preset-pipeline">' + agentLabels + '</div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  // User presets
+  presetNames.forEach(function(name) {
+    var agents = presets[name];
+    var agentLabels = agents.map(function(aid) { var a = AGENTS.find(function(x) { return x.id === aid; }); return a ? a.label.split(' ')[0] : aid; }).join(' → ');
+    html += '<div class="preset-card" style="margin-bottom:8px;">' +
+      '<div onclick="loadPreset(\'' + name.replace(/'/g, "\\'") + '\')" style="flex:1;cursor:pointer;">' +
+        '<div class="preset-name">📌 ' + name + '</div>' +
+        '<div class="preset-pipeline">' + agentLabels + '</div>' +
+      '</div>' +
+      '<div class="preset-actions">' +
+        '<button class="btn-xs danger" onclick="event.stopPropagation();deletePreset(\'' + name.replace(/'/g, "\\'") + '\')">🗑️</button>' +
+      '</div>' +
+    '</div>';
+  });
+
+  if (!html) {
+    html = '<p style="font-size:0.8rem; color:var(--text-dim);">Nessun preset salvato. Usa "💾 Salva corrente come preset" per crearne uno.</p>';
+  }
+
+  el.innerHTML = html;
+
+  // Update count badge
+  var totalCount = Object.keys(BUILTIN_PRESETS).length + presetNames.length;
+  var badge = document.getElementById('presetCount');
+  if (badge) badge.textContent = totalCount;
+}
+
+// ─── REPORT DOWNLOAD & AUTO-SAVE ───
+
+function downloadReport(format) {
+  var text = document.getElementById('reportInput').value.trim();
+  if (!text) { showToast('⚠️ Nessun report da scaricare'); return; }
+
+  var ext = format === 'json' ? '.json' : '.md';
+  var mime = format === 'json' ? 'application/json' : 'text/markdown';
+  var content = format === 'json'
+    ? JSON.stringify({ report: text, parsed_at: new Date().toISOString() }, null, 2)
+    : text;
+
+  var blob = new Blob([content], { type: mime });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'netconsole-report-' + new Date().toISOString().slice(0,19).replace(/[:]/g, '-') + ext;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📥 Report scaricato come .' + format);
+}
+
+function autoSaveReport() {
+  var text = document.getElementById('reportInput').value.trim();
+  if (!text) return;
+
+  // Salva in localStorage come ultimo report
+  try {
+    var reportData = {
+      content: text,
+      timestamp: new Date().toISOString(),
+      parsed: document.getElementById('reportOutput').innerHTML || ''
+    };
+    localStorage.setItem('hermes-netconsole-lastreport', JSON.stringify(reportData));
+    document.getElementById('reportSaveStatus').innerHTML = '💾 Salvato in locale';
+  } catch(e) {}
+
+  // Tenta salvataggio su vault tramite Harbor
+  fetch('/api/hermes/netconsole/save-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ report: text, timestamp: new Date().toISOString() })
+  })
+  .then(function(res) {
+    if (res.ok) {
+      document.getElementById('reportSaveStatus').innerHTML = '✅ Salvato nel vault';
+    } else {
+      document.getElementById('reportSaveStatus').innerHTML = '💾 Solo locale';
+    }
+  })
+  .catch(function() {
+    document.getElementById('reportSaveStatus').innerHTML = '💾 Solo locale (offline?)';
+  });
+}
+
+// ─── INIT ───
+
+renderAgentSelectors();
+renderPipeline();
+renderAgentDetail();
+updatePromptReady();
+initDiffDropZones();
+renderPresets();
+restoreSessionOnLoad();
+
+// ─── VALIDAZIONE AUTOMATICA ───
+
+var CONFIG_KEYWORDS = [
+  'interface ','router bgp','router ospf','hostname ','switchport',
+  'vlan ','ip route','snmp-server','spanning-tree','aaa ',
+  'ntp server','ip address','ip ssh','access-list','route-map',
+  'neighbor ','bfd','ip sla','policy-map','class-map',
+  'port link-type','port default vlan','sysname','stelnet','local-user',
+  'vlan batch','dhcp enable','ntp-service','snmp-agent','info-center'
+];
+
+function looksLikeConfig(text) {
+  if (!text) return false;
+  var lower = text.toLowerCase();
+  var hits = 0;
+  for (var i = 0; i < CONFIG_KEYWORDS.length; i++) {
+    if (lower.indexOf(CONFIG_KEYWORDS[i]) !== -1) hits++;
+    if (hits >= 3) return true;
+  }
+  return false;
+}
+
+function validateResponse() {
+  var configText = document.getElementById('configInput').value.trim();
+  var reportText = document.getElementById('reportInput').value.trim();
+  var out = document.getElementById('validationOutput');
+  if (!out) return;
+
+  if (!configText || !reportText) {
+    out.innerHTML = '<div class="validation-section"><div class="validation-empty">🔍 Inserisci la configurazione originale e il report per vedere la validazione automatica.</div></div>';
+    return;
+  }
+
+  // Estrai solo la parte di configurazione dalla risposta (se presente)
+  var configCandidate = extractConfigFromReport(reportText);
+  if (!configCandidate || !looksLikeConfig(configCandidate)) {
+    out.innerHTML = '<div class="validation-section"><div class="section-title">🔄 Validazione automatica</div><div class="validation-empty">📝 La risposta non contiene una configurazione — impossibile fare il diff. Forse è un report testuale (scenario, gap, criticità).</div></div>';
+    return;
+  }
+
+  // Diff tra configurazione originale e configurazione nella risposta
+  var linesA = configText.split('\n');
+  var linesB = configCandidate.split('\n');
+  var classified = classifyLines(linesA, linesB);
+
+  // Calcola similarità
+  var totalLines = 0, identicalLines = 0;
+  Object.keys(classified).forEach(function(cat) {
+    totalLines += classified[cat].added.length + classified[cat].removed.length + classified[cat].modified.length + classified[cat].identical.length;
+    identicalLines += classified[cat].identical.length;
+  });
+  var sim = totalLines > 0 ? Math.round((identicalLines / totalLines) * 100) : 100;
+  var simClass = sim >= 90 ? 'diff-sim-green' : sim >= 70 ? 'diff-sim-yellow' : 'diff-sim-red';
+
+  var totalMod = 0, totalAdd = 0, totalRem = 0;
+  Object.keys(classified).forEach(function(cat) {
+    totalAdd += classified[cat].added.length;
+    totalRem += classified[cat].removed.length;
+    totalMod += classified[cat].modified.length;
+  });
+
+  var html = '<div class="validation-section">' +
+    '<div class="section-title">🔄 Validazione automatica — Config Originale vs Risposta Hermes</div>' +
+    '<div class="diff-summary">' +
+      '<div class="diff-summary-grid">' +
+        '<span class="diff-sim-badge ' + simClass + '">📊 Similarità ' + sim + '%</span>' +
+        '<span class="diff-stat-chip" style="color:var(--green);">+ ' + totalAdd + ' aggiunte</span>' +
+        '<span class="diff-stat-chip" style="color:var(--red);">− ' + totalRem + ' rimosse</span>' +
+        '<span class="diff-stat-chip" style="color:var(--orange);">~ ' + totalMod + ' modificate</span>' +
+      '</div>' +
+    '</div>';
+
+  // Renderizza categorie (stesso ordine del Config Diff)
+  DIFF_CATEGORIES.forEach(function(cat) {
+    var data = classified[cat.id];
+    if (!data) return;
+    var total = data.added.length + data.removed.length + data.modified.length + data.identical.length;
+    if (total === 0) return;
+    html += renderDiffCategory(cat, data);
+  });
+
+  // Categoria uncategorized
+  var uncat = classified._uncategorized;
+  if (uncat && (uncat.added.length + uncat.removed.length + uncat.modified.length + uncat.identical.length) > 0) {
+    html += renderDiffCategory({ id: '_uncategorized', icon: '📋', name: 'Altro / Non categorizzato' }, uncat);
+  }
+
+  html += '</div>';
+  out.innerHTML = html;
+}
+
+function extractConfigFromReport(text) {
+  // Cerca blocchi di codice delimitati da ``` o sezioni "CONFIGURAZIONE"
+  var codeBlock = text.match(/```[\s\S]*?```/g);
+  if (codeBlock) {
+    // Prendi il blocco più lungo (probabilmente contiene una config)
+    var longest = codeBlock.reduce(function(a, b) { return a.length > b.length ? a : b; }, '');
+    return longest.replace(/```\w*\n?/g, '').trim();
+  }
+
+  // Cerca sezioni "CONFIGURAZIONE" o "CONFIG" in stile Net Console
+  var configSection = text.match(/═+[\s\S]*?CONFIGURAZIONE[\s\S]*?═+\n([\s\S]*?)(?=═+|$)/);
+  if (configSection && configSection[1]) {
+    return configSection[1].trim();
+  }
+
+  // Se il testo stesso sembra una config, restituiscilo
+  if (looksLikeConfig(text)) return text;
+
+  return null;
+}
+
+// ─── CODA MULTI-CONFIG ───
+
+var queueItems = [];
+var queueRunning = false;
+var queueAbortController = null;
+
+// Drag & drop coda
+(function() {
+  var qdz = document.getElementById('queueDropZone');
+  if (qdz) {
+    qdz.addEventListener('dragover', function(e) { e.preventDefault(); qdz.style.borderColor = 'var(--accent)'; });
+    qdz.addEventListener('dragleave', function() { qdz.style.borderColor = 'var(--border)'; });
+    qdz.addEventListener('drop', function(e) {
+      e.preventDefault();
+      qdz.style.borderColor = 'var(--border)';
+      if (e.dataTransfer.files.length > 0) addToQueue(e.dataTransfer.files);
+    });
+  }
+})();
+
+function addToQueue(files) {
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    var ext = file.name.split('.').pop().toLowerCase();
+    if (['txt','cfg','config','conf'].indexOf(ext) === -1) {
+      showToast('⚠️ Formato non supportato: .' + ext);
+      continue;
+    }
+    var reader = new FileReader();
+    reader.onload = (function(f) {
+      return function(e) {
+        queueItems.push({
+          name: f.name,
+          size: f.size,
+          content: e.target.result,
+          status: 'waiting', // waiting | running | completed | error
+          result: null,
+          error: null
+        });
+        updateQueueUI();
+        showToast('📦 ' + f.name + ' aggiunto alla coda');
+      };
+    })(file);
+    reader.readAsText(file);
+  }
+  document.getElementById('queueFileInput').value = '';
+}
+
+function removeFromQueue(index) {
+  if (queueRunning && queueItems[index] && queueItems[index].status === 'running') {
+    showToast('⚠️ Impossibile rimuovere un item in esecuzione');
+    return;
+  }
+  queueItems.splice(index, 1);
+  updateQueueUI();
+}
+
+function clearQueue() {
+  if (queueRunning) { showToast('⚠️ Ferma la coda prima di svuotarla'); return; }
+  queueItems = [];
+  updateQueueUI();
+  document.getElementById('queueAggregatedReport').style.display = 'none';
+}
+
+function updateQueueUI() {
+  var list = document.getElementById('queueList');
+  var stats = document.getElementById('queueStats');
+  var progressBar = document.getElementById('queueProgressBar');
+  var badge = document.getElementById('queueCount');
+
+  if (queueItems.length === 0) {
+    list.innerHTML = '<p style="font-size:0.8rem; color:var(--text-dim);">Nessuna configurazione in coda. Carica i file qui sopra.</p>';
+    stats.style.display = 'none';
+    progressBar.style.display = 'none';
+    if (badge) badge.textContent = '0';
+    return;
+  }
+
+  if (badge) badge.textContent = queueItems.length;
+
+  // Lista
+  list.innerHTML = queueItems.map(function(item, i) {
+    var statusClass = '', statusLabel = '';
+    switch(item.status) {
+      case 'waiting':   statusClass = 'qi-waiting'; statusLabel = 'In attesa'; break;
+      case 'running':   statusClass = 'qi-running'; statusLabel = '⏳ In corso...'; break;
+      case 'completed': statusClass = 'qi-done';    statusLabel = '✅ Completato'; break;
+      case 'error':     statusClass = 'qi-failed';  statusLabel = '❌ Errore'; break;
+    }
+    var itemClass = '';
+    if (item.status === 'running') itemClass = ' processing';
+    else if (item.status === 'completed') itemClass = ' completed';
+    else if (item.status === 'error') itemClass = ' error';
+
+    var sizeStr = item.size < 1024 ? item.size + ' B' : (item.size/1024).toFixed(1) + ' KB';
+    var removeBtn = (item.status === 'waiting')
+      ? '<button class="qi-remove" onclick="event.stopPropagation();removeFromQueue(' + i + ')">✕</button>'
+      : '';
+
+    return '<div class="queue-item' + itemClass + '">' +
+      '<span class="qi-status ' + statusClass + '">' + statusLabel + '</span>' +
+      '<span class="qi-name">📄 ' + item.name + '</span>' +
+      '<span class="qi-size">' + sizeStr + '</span>' +
+      removeBtn +
+    '</div>';
+  }).join('');
+
+  // Stats
+  var done = queueItems.filter(function(x) { return x.status === 'completed'; }).length;
+  var failed = queueItems.filter(function(x) { return x.status === 'error'; }).length;
+  var running = queueItems.filter(function(x) { return x.status === 'running'; }).length;
+
+  stats.style.display = 'flex';
+  document.getElementById('qsTotal').textContent = queueItems.length;
+  document.getElementById('qsDone').textContent = done;
+  document.getElementById('qsFailed').textContent = failed;
+  document.getElementById('qsRunning').textContent = running;
+
+  // Progress bar
+  var processed = done + failed;
+  if (processed > 0 || queueRunning) {
+    progressBar.style.display = 'block';
+    var pct = queueItems.length > 0 ? Math.round((processed / queueItems.length) * 100) : 0;
+    document.getElementById('queueProgressFill').style.width = pct + '%';
+  }
+}
+
+function stopQueue() {
+  if (queueAbortController) {
+    queueAbortController.abort();
+    queueAbortController = null;
+  }
+  queueRunning = false;
+  document.getElementById('btnStartQueue').style.display = 'inline-block';
+  document.getElementById('btnStopQueue').style.display = 'none';
+  // Marca gli item in attesa come non processati
+  queueItems.forEach(function(item) {
+    if (item.status === 'waiting') item.status = 'waiting'; // resta in attesa
+    if (item.status === 'running') item.status = 'error';
+  });
+  updateQueueUI();
+  showToast('⏹️ Coda fermata');
+}
+
+async function startQueue() {
+  if (queueRunning) return;
+  if (queueItems.length === 0) { showToast('⚠️ Nessuna configurazione in coda'); return; }
+
+  queueRunning = true;
+  document.getElementById('btnStartQueue').style.display = 'none';
+  document.getElementById('btnStopQueue').style.display = 'inline-block';
+  document.getElementById('queueAggregatedReport').style.display = 'none';
+
+  for (var i = 0; i < queueItems.length; i++) {
+    if (!queueRunning) break;
+    if (queueItems[i].status !== 'waiting') continue;
+
+    queueItems[i].status = 'running';
+    queueItems[i].result = null;
+    queueItems[i].error = null;
+    updateQueueUI();
+
+    queueAbortController = new AbortController();
+
+    try {
+      var res = await fetch('/api/hermes/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: queueItems[i].content }),
+        signal: queueAbortController.signal
+      });
+
+      if (!res.ok) {
+        var errData = await res.json().catch(function() { return {}; });
+        throw new Error(errData.details || errData.error || 'HTTP ' + res.status);
+      }
+
+      var data = await res.json();
+      queueItems[i].result = data.result || '(nessuna risposta)';
+      queueItems[i].status = 'completed';
+
+      // Auto-salva il report
+      try {
+        await fetch('/api/hermes/netconsole/save-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ report: '[' + queueItems[i].name + ']\n\n' + queueItems[i].result, timestamp: new Date().toISOString() })
+        });
+      } catch(e) { /* ignore save errors */ }
+
+    } catch(err) {
+      if (err.name === 'AbortError') {
+        queueItems[i].error = 'Annullato';
+      } else {
+        queueItems[i].error = err.message || 'Errore sconosciuto';
+      }
+      queueItems[i].status = 'error';
+    }
+
+    queueAbortController = null;
+    updateQueueUI();
+  }
+
+  queueRunning = false;
+  document.getElementById('btnStartQueue').style.display = 'inline-block';
+  document.getElementById('btnStopQueue').style.display = 'none';
+  queueAbortController = null;
+
+  renderAggregatedReport();
+  showToast('✅ Coda completata');
+}
+
+function renderAggregatedReport() {
+  var completed = queueItems.filter(function(x) { return x.status === 'completed'; });
+  if (completed.length === 0) return;
+
+  var html = '<div class="card-title" style="margin-bottom:12px;">📊 Report Aggregato — ' + completed.length + ' configurazioni processate</div>';
+
+  completed.forEach(function(item, i) {
+    html += '<div class="diff-cat-section" style="margin-bottom:8px;">' +
+      '<div class="diff-cat-header" onclick="toggleDiffCat(this)" style="cursor:pointer;">' +
+        '<span class="cat-icon">📄</span>' +
+        '<span class="cat-name">' + (i+1) + '. ' + item.name + '</span>' +
+        '<span class="cat-badges"><span class="cat-badge cb-add">✅</span></span>' +
+        '<span class="cat-arrow">▶</span>' +
+      '</div>' +
+      '<div class="diff-cat-body">' +
+        '<div class="diff-line" style="white-space:pre-wrap;font-size:0.78rem;padding:12px 16px;">' + escHtml(item.result || '') + '</div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  var el = document.getElementById('queueAggregatedReport');
+  el.innerHTML = html;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>
