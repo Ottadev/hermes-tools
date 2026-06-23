@@ -285,3 +285,84 @@ Servito con **Caddy** su porta `:3001`, accesso limitato a LAN:
 ```
 
 URL: `http://steamdeck:3001/`
+
+---
+
+# Net Console — Product Requirements Document
+
+> **Console HTML standalone** per handover di apparati di rete con pipeline multi-agente, diff engine e integrazione agenti networking.
+
+**Versione:** 2.1
+**Stato:** Stabile — simplify-code completato (24/06/2026)
+**Repo:** `github.com/Ottadev/hermes-tools`
+**File:** `hermes-net-console.html` (2775 righe) + `tests/netconsole-lib.js` (265 righe)
+
+---
+
+## 1. Visione
+
+Net Console è l'orchestratore per l'handover di configurazioni di rete. Carichi una config, selezioni una pipeline di agenti AI, generi un prompt strutturato e invii direttamente ad Hermes. Il report di ritorno viene parsato con badge e tabelle gap. Include Config Diff, export per skill networking e coda multi-config.
+
+## 2. Architettura
+
+```
+┌──────────────────────────────────────────────┐
+│ hermes-net-console.html (2775 righe)         │
+│ Single-file HTML + JS inline                 │
+│ 7 tab: Input, Preset, Prompt, Report,        │
+│ Legenda, Config Diff, Coda                  │
+├──────────────────────────────────────────────┤
+│ netconsole-lib.js (265 righe, ES module)     │
+│ Single source of truth per pure functions:   │
+│ escHtml, formatBytes, DIFF_CATEGORIES,       │
+│ classifyLines (O(n) con pre-index),          │
+│ detectVendor/DeviceType (lowerConfig cache), │
+│ hasFeature, SKILL_MAP, AGENTS, AGENT_MAP,   │
+│ getNetworkingSkills                          │
+│ ─── inlinato nell'HTML come bundle ───       │
+├──────────────────────────────────────────────┤
+│ vitest: 71 test (diff engine, vendor det.,   │
+│ skill mapping, data validation)              │
+└──────────────────────────────────────────────┘
+```
+
+## 3. Funzionalità
+
+| Tab | Funzione |
+|-----|----------|
+| 📥 **Input & Context** | Upload file (drag & drop), textarea config + contesto RAW, selezione agenti (7) con ordinamento drag, salva/carica sessione localStorage |
+| 📌 **Preset** | 4 predefiniti (Migrazione, Audit, Documentazione, Vendor Translation) + personalizzati |
+| 📤 **Prompt** | Generazione prompt strutturato con header pipeline, config sanitizzata, contesto RAW. Copia prompt, invio diretto ad Hermes (🚀) con overlay spinner, auto-switch Tab Report, auto-parse |
+| 📊 **Report** | Parsing automatico risposta Hermes: badge scenario/confidence, tabella delta con 6 categorie colorate, dependency warnings, segnali matchati, sezioni espandibili. Scarica Report (.md/.json) + auto-salvataggio vault (`netconsole-jobs/`) |
+| 📖 **Legenda** | Documentazione 7 agenti + flusso pipeline |
+| 📊 **Config Diff** | Upload 2 config (legacy vs nuova), diff O(n) con pre-index in 6 categorie (Sicurezza L2, STP, Routing, VLAN, Hardening, QoS), similarity score, sezioni espandibili |
+| 📦 **Coda** | Upload multi-config, processamento sequenziale con progress bar, report aggregato finale, stato per item (waiting/running/completed/error) |
+
+## 4. Simplify-code — Sessione 24/06/2026
+
+Refactor completo con skill `simplify-code` (3 reviewer paralleli: Reuse, Quality, Efficiency):
+
+| Fase | Fix | Impatto |
+|------|-----|---------|
+| **P0** | Init duplicato rimosso, dead code no-op, no-op `.map()` | −6 righe, double DOM work eliminato |
+| **P1** | `refreshAgentUI()` (9→1 call site), XSS escaping, `AGENT_MAP` O(1) (8 `.find()` eliminati) | +6 righe, sicurezza migliorata |
+| **P2** | `copyElementText()` condiviso, `formatBytes()`, `setupDropZone()` (3→1), cache `.toLowerCase()` (8→1), diff O(n²)→O(n) con `baseIndexA` | −18 righe boilerplate, 8× meno `.toLowerCase()` |
+| **P3** | Single source of truth: lib ES module → bundle inline. AGENTS descrizioni ricche unificate. `getNetworkingSkills` firma pulita (`configText` parametro) | −282 righe HTML, −9.1% totale |
+
+**Risultato:** 3054 → 2775 righe (−279), 71 test passati, 0 `AGENTS.find` residui, 0 duplicazioni pura logica.
+
+## 5. Build & Deploy
+
+- **Sviluppo:** `~/Progetti/Tools/` — modifiche a `hermes-net-console.html` + `tests/netconsole-lib.js`
+- **Test:** `npx vitest run` (71 test)
+- **Bundle:** `tests/netconsole-lib.js` → minificato e inlinato nell'HTML (no dipendenze esterne)
+- **Deploy:** Caddy serve `~/Progetti/Tools/` su `:3001` (LAN only)
+- **Git:** `github.com/Ottadev/hermes-tools`
+
+## 6. Storia Versioni
+
+| Versione | Data | Modifiche |
+|---|---|---|
+| **2.1** | 24/06/2026 | Simplify-code P0–P3: single source of truth, O(n) diff, XSS fix, AGENT_MAP, dedup funzioni, cache toLowerCase. 71 test. |
+| **2.0** | 22/06/2026 | 7 tab (Input, Preset, Prompt, Report+Validazione, Legenda, Config Diff, Coda). Export Agenti Networking con detection vendor e mapping skill. Invio diretto ad Hermes. Session Bar + auto-save. |
+| **1.0** | 16/06/2026 | Versione iniziale: upload config, pipeline visiva, generazione prompt, parsing report.

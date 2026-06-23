@@ -1219,69 +1219,27 @@
 </div>
 
 <script>
-// ─── DATA ───
-
-const AGENTS = [
-  {
-    id: 'agent-discovery-assessment',
-    label: '🔍 Discovery & Assessment',
-    desc: 'Identifica scenario (Z/C/A/B/M2M) con confidence score e produce delta vs template standard. È il passo 0 di ogni pipeline.',
-    inputs: '1 config sanitizzata',
-    priority: 'Alta',
-    next: '→ tutti gli altri agenti'
-  },
-  {
-    id: 'agent-delta-analysis',
-    label: '📊 Delta-Analysis',
-    desc: 'Confronta due configurazioni (legacy vs nuova) in 6 categorie: sicurezza L2, STP, routing, VLAN, hardening, QoS.',
-    inputs: '2 config (legacy + nuova)',
-    priority: 'Alta',
-    next: '→ Migration-planner, MOP'
-  },
-  {
-    id: 'agent-document-scaffolding',
-    label: '📄 Scaffolding Documenti',
-    desc: 'Genera strutture HLD, LLD, Runbook, MOP, Agenda, Post-Mortem, ATP. Placeholder descrittivi, tu riempi il tecnico.',
-    inputs: 'Tipo documento, contesto',
-    priority: 'Alta',
-    next: '→ Documento finale'
-  },
-  {
-    id: 'agent-cli-templating',
-    label: '⚙️ Templating CLI',
-    desc: 'Script CLI parametrizzati con {{placeholder}}, commenti inline, comandi verifica, errori comuni.',
-    inputs: 'Scenario, modello, IOS',
-    priority: 'Alta',
-    next: '→ MOP, Handover NOC'
-  },
-  {
-    id: 'agent-mop-generator',
-    label: '📋 MOP Generator',
-    desc: 'Method of Procedure: pre-check, step con rollback, post-check, rollback globale. Eseguibile dal NOC.',
-    inputs: 'Attività, apparati, servizi',
-    priority: 'Alta',
-    next: '→ Esecuzione NOC'
-  },
-  {
-    id: 'agent-migration-planner',
-    label: '🔄 Piano Migrazione',
-    desc: 'Piano ZDT a 6 fasi: preparazione, attivazione parallela, migrazione backup/primario, burn-in, dismissione.',
-    inputs: 'AS-IS, TO-BE, vincoli',
-    priority: 'Media',
-    next: '→ MOP, Esecuzione'
-  },
-  {
-    id: 'agent-vendor-translation',
-    label: '🌐 Vendor Translation',
-    desc: 'Cisco → Aethra/JunOS/Fortinet/Huawei. Analisi funzionale + equivalente nativo + delta comportamentale.',
-    inputs: 'Config Cisco, target vendor',
-    priority: 'Media',
-    next: '→ CLI-templating'
-  }
-];
-
-const AGENT_DESCRIPTIONS = Object.fromEntries(AGENTS.map(a => [a.id, `**${a.label}** — ${a.desc}`]));
-
+/** Net Console Pure Logic Library — Single source of truth */
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function formatBytes(b) { if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'; }
+var DIFF_CATEGORIES=[{id:'l2sec',icon:'🔒',name:'Sicurezza L2',keywords:['port-security','access-list','ip access','dot1x','authentication','mab','auth','storm-control','dhcp snooping','ip source guard','dynamic arp','arp inspection','portfast bpduguard']},{id:'stp',icon:'🌀',name:'STP',keywords:['spanning-tree','stp','root','priority','guard','bpdu','loopguard','rootguard','uplinkfast','backbonefast','mst','rapid-pvst','mode pvst']},{id:'routing',icon:'📡',name:'Routing',keywords:['router bgp','router ospf','router eigrp','router isis','ip route','ip prefix','route-map','neighbor','redistribute','network ','bfd','ip sla','track','vrf','ip vrf']},{id:'vlan',icon:'🔗',name:'VLAN',keywords:['vlan ','switchport','interface vlan','name ','trunk','access vlan','voice vlan','native vlan','vtp','vlan database']},{id:'hardening',icon:'🛡️',name:'Hardening',keywords:['snmp','logging','ntp','aaa','tacacs','radius','username','password','secret','enable secret','service password','ip ssh','banner','exec-timeout','login','privilege','crypto','ssh','https','access-class','log-buffer']},{id:'qos',icon:'⚡',name:'QoS',keywords:['policy-map','class-map','service-policy','qos','cos','dscp','priority','bandwidth','shape','police','queue','mls qos','auto-qos','codec','voice-class']}];
+function categorizeLine(l){var lo=l.trim().toLowerCase();if(!lo||lo==='!'||lo==='end')return null;for(var ci=0;ci<DIFF_CATEGORIES.length;ci++){var c=DIFF_CATEGORIES[ci];for(var ki=0;ki<c.keywords.length;ki++){if(lo.includes(c.keywords[ki]))return c.id;}}return null;}
+function classifyLines(lA,lB){var sA=new Set(),aA=[],sB=new Set(),aB=[];lA.forEach(function(l){var t=l.trim();if(t&&t!=='!'&&t!=='end'){sA.add(t);aA.push(t);}});lB.forEach(function(l){var t=l.trim();if(t&&t!=='!'&&t!=='end'){sB.add(t);aB.push(t);}});var r={};DIFF_CATEGORIES.forEach(function(c){r[c.id]={added:[],removed:[],modified:[],identical:[]};});r._uncategorized={added:[],removed:[],modified:[],identical:[]};var cons=new Set();var bi={};for(var ai=0;ai<aA.length;ai++){var al=aA[ai];if(sB.has(al))continue;var ap=al.split(/\s+/);var ab=ap.slice(0,Math.min(3,ap.length)).join(' ');if(!bi[ab])bi[ab]=[];bi[ab].push(ai);}aB.forEach(function(l){if(sA.has(l)){var cat=categorizeLine(l)||'_uncategorized';r[cat].identical.push(l);}else{var isM=false;var bp=l.split(/\s+/);var bb=bp.slice(0,Math.min(3,bp.length)).join(' ');var cand=bi[bb];if(cand){for(var ci=0;ci<cand.length;ci++){var al2=aA[cand[ci]];if(cons.has(al2))continue;if(al2!==l){var cat2=categorizeLine(l)||'_uncategorized';r[cat2].modified.push({a:al2,b:l});cons.add(al2);isM=true;break;}}}if(!isM){var cat3=categorizeLine(l)||'_uncategorized';r[cat3].added.push(l);}}});aA.forEach(function(l){if(!sB.has(l)&&!cons.has(l)){var cat=categorizeLine(l)||'_uncategorized';r[cat].removed.push(l);}});return r;}
+var CISCO_KW=['cisco','catalyst','nexus','interface gigabitethernet','router bgp','ip route','ip ssh','aaa new-model','spanning-tree vlan','switchport','ip access-list','bfd-template','ip sla','snmp-server','logging ','ntp server','service password','enable secret','username ','line vty','ip http','crypto key'];
+var HUAWEI_KW=['huawei','vrp','interface vlanif','display ','undo ','sysname','stelnet','hwtacacs','local-user','authentication-mode','speed auto','duplex auto','dhcp enable','vlan batch','port link-type','port default vlan','voice-vlan','ntp-service','snmp-agent','info-center','radius-server','acl number','traffic classifier','traffic behavior'];
+function detectVendor(cfg,lc){var c=lc||(cfg||'').toLowerCase();var cs=0,hs=0;for(var i=0;i<CISCO_KW.length;i++){if(c.indexOf(CISCO_KW[i])!==-1)cs++;}for(var j=0;j<HUAWEI_KW.length;j++){if(c.indexOf(HUAWEI_KW[j])!==-1)hs++;}if(cs>hs&&cs>=3)return'cisco';if(hs>cs&&hs>=3)return'huawei';if(cs>0&&hs>0)return'mixed';return null;}
+var SWITCH_KW=['switchport','spanning-tree','vlan','voice vlan','port-security','poe','lldp run','vtp','mac address-table','storm-control','portfast','bpduguard','stack','stackwise','port link-type','port default vlan'];
+var ROUTER_KW=['router bgp','router ospf','router eigrp','router isis','ip route 0.0.0.0','bfd','ip sla','nat','redistribute','route-map','neighbor ','vrf','ip vrf','mpls','l2vpn','xconnect'];
+function detectDeviceType(cfg,lc){var c=lc||(cfg||'').toLowerCase();var ss=0,rs=0;for(var i=0;i<SWITCH_KW.length;i++){if(c.indexOf(SWITCH_KW[i])!==-1)ss++;}for(var j=0;j<ROUTER_KW.length;j++){if(c.indexOf(ROUTER_KW[j])!==-1)rs++;}if(ss>rs&&ss>=2)return'switch';if(rs>ss&&rs>=2)return'router';if(ss>0&&rs>0)return'switch';return'unknown';}
+function hasFeature(cfg,kw,lc){var c=lc||(cfg||'').toLowerCase();for(var i=0;i<kw.length;i++){if(c.indexOf(kw[i])!==-1)return true;}return false;}
+var SKILL_MAP={cisco:{switch:['cisco-standard-switch-base','cisco-standard-switch-lan','cisco-standard-etherchannel'],router:['cisco-standard-wan-config','cisco-standard-nat-pat','cisco-standard-bfd','cisco-qos-policy'],defaults:['cisco-standard-logging','cisco-standard-ntp','cisco-standard-radius-aaa','cisco-standard-management','cisco-smart-licensing']},huawei:{switch:['huawei-standard-switch-base','huawei-standard-switch-lan','huawei-standard-switch-commands'],router:['huawei-standard-wan-config','huawei-standard-nat-pat'],defaults:['huawei-standard-logging','huawei-standard-ntp','huawei-standard-radius-aaa','huawei-standard-management']},bgp:{cisco:['cisco-bgp-lan-customer-z','cisco-bgp-lan-customer-a'],huawei:['huawei-bgp-lan-customer-z','huawei-bgp-lan-customer-a']},routing:{cisco:['ip-sla-migration','change-management-static-routes'],huawei:['huawei-standard-routing-scenario-z','huawei-standard-routing-scenario-a','huawei-standard-routing-scenario-c']},migration:['migration-as-is-to-be','migration-mop-generation','migration-vrf-client-vpn'],discovery:['discovery-matcher'],docs:['network-diagram-prompting','network-project-orchestrator']};
+var AGENT_TO_SKILL_CATEGORY={'agent-discovery-assessment':['discovery'],'agent-delta-analysis':['discovery'],'agent-document-scaffolding':['docs'],'agent-cli-templating':[],'agent-mop-generator':['migration'],'agent-migration-planner':['migration'],'agent-vendor-translation':[]};
+function getNetworkingSkills(v,d,ids,txt){var sk=[];var seen={};function add(arr){if(!arr)return;for(var i=0;i<arr.length;i++){if(!seen[arr[i]]){seen[arr[i]]=true;sk.push(arr[i]);}}}var lc=txt?txt.toLowerCase():'';if(v&&SKILL_MAP[v]){add(SKILL_MAP[v].defaults);if(d&&SKILL_MAP[v][d])add(SKILL_MAP[v][d]);}if(v&&hasFeature(txt,['router bgp','bgp ','neighbor','remote-as'],lc))add(SKILL_MAP.bgp&&SKILL_MAP.bgp[v]);if(v&&hasFeature(txt,['ip sla','track ','icmp-echo'],lc)){if(SKILL_MAP.routing&&SKILL_MAP.routing[v])add(SKILL_MAP.routing[v]);}if(hasFeature(txt,['bfd','fall-over bfd','bfd-template'],lc))add(['cisco-standard-bfd']);if(hasFeature(txt,['etherchannel','port-channel','channel-group','lacp','pagp'],lc))add(['cisco-standard-etherchannel']);if(hasFeature(txt,['qos','policy-map','class-map','service-policy','dscp','priority','bandwidth'],lc))add(['cisco-qos-policy']);if(hasFeature(txt,['dmvpn','tunnel protection','nhrp'],lc))add(['dmvpn-design']);for(var ai=0;ai<ids.length;ai++){var cats=AGENT_TO_SKILL_CATEGORY[ids[ai]];if(cats){for(var ci=0;ci<cats.length;ci++)add(SKILL_MAP[cats[ci]]);}}return sk;}
+var AGENTS=[{id:'agent-discovery-assessment',label:'🔍 Discovery & Assessment',desc:'Identifica scenario (Z/C/A/B/M2M) con confidence score e produce delta vs template standard. È il passo 0 di ogni pipeline.',inputs:'1 config sanitizzata',priority:'Alta',next:'→ tutti gli altri agenti'},{id:'agent-delta-analysis',label:'📊 Delta-Analysis',desc:'Confronta due configurazioni (legacy vs nuova) in 6 categorie: sicurezza L2, STP, routing, VLAN, hardening, QoS.',inputs:'2 config (legacy + nuova)',priority:'Alta',next:'→ Migration-planner, MOP'},{id:'agent-document-scaffolding',label:'📄 Scaffolding Documenti',desc:'Genera strutture HLD, LLD, Runbook, MOP, Agenda, Post-Mortem, ATP. Placeholder descrittivi, tu riempi il tecnico.',inputs:'Tipo documento, contesto',priority:'Alta',next:'→ Documento finale'},{id:'agent-cli-templating',label:'⚙️ Templating CLI',desc:'Script CLI parametrizzati con {{placeholder}}, commenti inline, comandi verifica, errori comuni.',inputs:'Scenario, modello, IOS',priority:'Alta',next:'→ MOP, Handover NOC'},{id:'agent-mop-generator',label:'📋 MOP Generator',desc:'Method of Procedure: pre-check, step con rollback, post-check, rollback globale. Eseguibile dal NOC.',inputs:'Attività, apparati, servizi',priority:'Alta',next:'→ Esecuzione NOC'},{id:'agent-migration-planner',label:'🔄 Piano Migrazione',desc:'Piano ZDT a 6 fasi: preparazione, attivazione parallela, migrazione backup/primario, burn-in, dismissione.',inputs:'AS-IS, TO-BE, vincoli',priority:'Media',next:'→ MOP, Esecuzione'},{id:'agent-vendor-translation',label:'🌐 Vendor Translation',desc:'Cisco → Aethra/JunOS/Fortinet/Huawei. Analisi funzionale + equivalente nativo + delta comportamentale.',inputs:'Config Cisco, target vendor',priority:'Media',next:'→ CLI-templating'}];
+var AGENT_MAP=Object.fromEntries(AGENTS.map(function(a){return[a.id,a];}));
+function getAgentDescriptions(){return Object.fromEntries(AGENTS.map(function(a){return[a.id,'**'+a.label+'** — '+a.desc];}));}
+</script>
+<script>
 let selectedAgents = [];
 let diffConfigA = null; // { name, size, content }
 let diffConfigB = null;
@@ -1356,18 +1314,25 @@ function addFileTag(name) {
   list.appendChild(tag);
 }
 
-// Drag & drop
+// Drag & drop helpers
+
+function setupDropZone(element, onDropCallback) {
+  element.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    element.classList.add('drag-over');
+  });
+  element.addEventListener('dragleave', function() {
+    element.classList.remove('drag-over');
+  });
+  element.addEventListener('drop', function(e) {
+    e.preventDefault();
+    element.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) onDropCallback(e.dataTransfer.files);
+  });
+}
+
 const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropZone.classList.add('drag-over');
-});
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  handleFiles(e.dataTransfer.files);
-});
+setupDropZone(dropZone, handleFiles);
 
 // ─── AGENT SELECTOR (dual) ───
 
@@ -1394,17 +1359,14 @@ function toggleAgent(id) {
   } else {
     selectedAgents.splice(idx, 1);
   }
-  renderAgentSelectors();
-  renderPipeline();
-  updatePromptReady();
+  refreshAgentUI();
 }
 
 function moveAgentUp(id) {
   const idx = selectedAgents.indexOf(id);
   if (idx > 0) {
     [selectedAgents[idx-1], selectedAgents[idx]] = [selectedAgents[idx], selectedAgents[idx-1]];
-    renderAgentSelectors();
-    renderPipeline();
+    refreshAgentUI();
   }
 }
 
@@ -1412,8 +1374,7 @@ function moveAgentDown(id) {
   const idx = selectedAgents.indexOf(id);
   if (idx < selectedAgents.length - 1) {
     [selectedAgents[idx], selectedAgents[idx+1]] = [selectedAgents[idx+1], selectedAgents[idx]];
-    renderAgentSelectors();
-    renderPipeline();
+    refreshAgentUI();
   }
 }
 
@@ -1425,7 +1386,7 @@ function renderPipeline() {
     return;
   }
   el.innerHTML = selectedAgents.map((id, i) => {
-    var agent = AGENTS.find(a => a.id === id);
+    var agent = AGENT_MAP[id];
     if (!agent) return '';
     var arrow = i < selectedAgents.length - 1 ? '<span class="arrow"> → </span>' : '';
     return '<span class="step">' + agent.label + '</span>' + arrow;
@@ -1440,6 +1401,12 @@ function updatePromptReady() {
   } else {
     badge.style.display = 'none';
   }
+}
+
+function refreshAgentUI() {
+  renderAgentSelectors();
+  renderPipeline();
+  updatePromptReady();
 }
 
 // ─── GENERATE PROMPT ───
@@ -1458,7 +1425,7 @@ function generatePrompt() {
   }
 
   const now = new Date().toLocaleString('it-IT');
-  const primaryAgent = AGENTS.find(a => a.id === selectedAgents[0]);
+  const primaryAgent = AGENT_MAP[selectedAgents[0]];
 
   let prompt = '';
 
@@ -1467,7 +1434,7 @@ function generatePrompt() {
   prompt += `PIPELINE RICHIESTA\n`;
   prompt += `═══════════════════════════════════\n`;
   prompt += selectedAgents.map((id, i) => {
-    const a = AGENTS.find(x => x.id === id);
+    const a = AGENT_MAP[id];
     return `  ${i+1}. ${a ? a.label : id}`;
   }).join('\n');
   prompt += '\n\n';
@@ -1493,11 +1460,11 @@ function generatePrompt() {
   prompt += `INFO AGGIUNTIVE\n`;
   prompt += `═══════════════════════════════════\n`;
   prompt += `Richiesto il: ${now}\n`;
-  prompt += `Pipeline completa: ${selectedAgents.length > 1 ? selectedAgents.map(id => { const a = AGENTS.find(x => x.id === id); return a ? a.label : id; }).join(' → ') : 'agente singolo'}\n`;
+  prompt += `Pipeline completa: ${selectedAgents.length > 1 ? selectedAgents.map(id => { const a = AGENT_MAP[id]; return a ? a.label : id; }).join(' → ') : 'agente singolo'}\n`;
   prompt += `La configurazione è già sanitizzata — IP e dati sensibili sono placeholder.\n`;
   prompt += `Output atteso per questo agente: report strutturato con scenario, delta e dependency warnings.\n`;
   if (selectedAgents.length > 1) {
-    prompt += `\nNota: dopo questo agente, passerò il risultato a: ${selectedAgents.slice(1).map(id => { const a = AGENTS.find(x => x.id === id); return a ? a.label : id; }).join(' → ')}`;
+    prompt += `\nNota: dopo questo agente, passerò il risultato a: ${selectedAgents.slice(1).map(id => { const a = AGENT_MAP[id]; return a ? a.label : id; }).join(' → ')}`;
   }
 
   document.getElementById('promptOutput').textContent = prompt;
@@ -1510,6 +1477,22 @@ function generatePrompt() {
 
 // ─── COPY ───
 
+function copyElementText(elementId, successMsg) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const text = el.textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(function() {
+    showToast(successMsg);
+  }).catch(function() {
+    const range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    showToast('📋 Selezionato — Copia (Ctrl+C)');
+  });
+}
+
 function copyPrompt() {
   const el = document.getElementById('promptOutput');
   const text = el.textContent;
@@ -1517,15 +1500,7 @@ function copyPrompt() {
     showToast('⚠️ Nessun prompt da copiare');
     return;
   }
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('📋 Prompt copiato! Incollalo nella chat con Hermes.');
-  }).catch(() => {
-    const range = document.createRange();
-    range.selectNode(el);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
-    showToast('📋 Selezionato — Copia (Ctrl+C)');
-  });
+  copyElementText('promptOutput', '📋 Prompt copiato! Incollalo nella chat con Hermes.');
 }
 
 function selectText(el) {
@@ -1542,9 +1517,7 @@ function clearContext() {
   document.getElementById('configInput').value = '';
   document.getElementById('fileList').innerHTML = '';
   selectedAgents = [];
-  renderAgentSelectors();
-  renderPipeline();
-  updatePromptReady();
+  refreshAgentUI();
   showToast('🗑️ Tutto pulito');
 }
 
@@ -1620,9 +1593,7 @@ NOTE TECNICHE:
 - BFD non supportato sui 2960X → valutare dopo migrazione`;
 
   selectedAgents = ['agent-discovery-assessment', 'agent-delta-analysis', 'agent-migration-planner', 'agent-mop-generator'];
-  renderAgentSelectors();
-  renderPipeline();
-  updatePromptReady();
+  refreshAgentUI();
   showToast('📝 Esempio caricato');
 }
 
@@ -1708,11 +1679,11 @@ function parseReport() {
           else if (priority.includes('🟡')) color = 'var(--orange)';
           else if (priority.includes('🟢')) color = 'var(--green)';
           html += `<tr>
-            <td>${cols[0].trim()}</td>
-            <td>${cols[1].trim()}</td>
-            <td>${cols[2].trim()}</td>
-            <td>${cols[3].trim()}</td>
-            <td style="color:${color}; font-weight:600">${priority}</td>
+            <td>${escHtml(cols[0].trim())}</td>
+            <td>${escHtml(cols[1].trim())}</td>
+            <td>${escHtml(cols[2].trim())}</td>
+            <td>${escHtml(cols[3].trim())}</td>
+            <td style="color:${color}; font-weight:600">${escHtml(priority)}</td>
           </tr>`;
         }
       });
@@ -1729,7 +1700,7 @@ function parseReport() {
       html += '<ul style="font-size:0.85rem; list-style:none; padding:0;">';
       warns.forEach(w => {
         const clean = w.replace(/^\d+\.\s*/, '').trim();
-        if (clean) html += `<li style="padding:6px 8px; margin:4px 0; background:var(--surface-2); border-radius:4px;">${clean}</li>`;
+        if (clean) html += `<li style="padding:6px 8px; margin:4px 0; background:var(--surface-2); border-radius:4px;">${escHtml(clean)}</li>`;
       });
       html += '</ul>';
     }
@@ -1820,15 +1791,9 @@ function showToast(msg) {
 // ─── CONFIG DIFF ───
 
 function initDiffDropZones() {
-  ['A','B'].forEach(side => {
-    const zone = document.getElementById('diffZone' + side);
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => {
-      e.preventDefault();
-      zone.classList.remove('drag-over');
-      if (e.dataTransfer.files.length > 0) diffLoadFile(e.dataTransfer.files[0], side);
-    });
+  ['A','B'].forEach(function(side) {
+    var zone = document.getElementById('diffZone' + side);
+    setupDropZone(zone, function(files) { diffLoadFile(files[0], side); });
   });
 }
 
@@ -1854,7 +1819,7 @@ function renderDiffZone(side, data) {
   zone.onclick = null;
   const lines = data.content.split('\n');
   const preview = lines.slice(0, 10).join('\n') + (lines.length > 10 ? '\n...' : '');
-  const sizeStr = data.size < 1024 ? data.size + ' B' : (data.size/1024).toFixed(1) + ' KB';
+  const sizeStr = formatBytes(data.size);
   const sideClass = side === 'A' ? 'dz-side-a' : 'dz-side-b';
   const sideLabel = side === 'A' ? 'Config A — Legacy / AS-IS' : 'Config B — Nuova / TO-BE';
   zone.innerHTML = '<div class="diff-file-info">' +
@@ -1881,82 +1846,6 @@ function diffRemoveFile(side) {
 function updateDiffCompareBar() {
   const bar = document.getElementById('diffCompareBar');
   bar.style.display = (diffConfigA && diffConfigB) ? 'block' : 'none';
-}
-
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ─── DIFF ENGINE ───
-
-var DIFF_CATEGORIES = [
-  { id: 'l2sec',    icon: '\ud83d\udd12', name: 'Sicurezza L2',  keywords: ['port-security','access-list','ip access','dot1x','authentication','mab','auth','storm-control','dhcp snooping','ip source guard','dynamic arp','arp inspection','portfast bpduguard'] },
-  { id: 'stp',      icon: '\ud83c\udf10', name: 'STP',           keywords: ['spanning-tree','stp','root','priority','guard','bpdu','loopguard','rootguard','uplinkfast','backbonefast','mst','rapid-pvst','mode pvst'] },
-  { id: 'routing',  icon: '\ud83d\udce1', name: 'Routing',       keywords: ['router bgp','router ospf','router eigrp','router isis','ip route','ip prefix','route-map','neighbor','redistribute','network ','bfd','ip sla','track','vrf','ip vrf'] },
-  { id: 'vlan',     icon: '\ud83d\udd17', name: 'VLAN',          keywords: ['vlan ','switchport','interface vlan','name ','trunk','access vlan','voice vlan','native vlan','vtp','vlan database'] },
-  { id: 'hardening',icon: '\ud83d\udee1\ufe0f', name: 'Hardening',    keywords: ['snmp','logging','ntp','aaa','tacacs','radius','username','password','secret','enable secret','service password','ip ssh','banner','exec-timeout','login','privilege','crypto','ssh','https','access-class','log-buffer'] },
-  { id: 'qos',      icon: '\u26a1', name: 'QoS',           keywords: ['policy-map','class-map','service-policy','qos','cos','dscp','priority','bandwidth','shape','police','queue','mls qos','auto-qos','codec','voice-class'] },
-];
-
-function categorizeLine(line) {
-  var lower = line.trim().toLowerCase();
-  if (!lower || lower === '!' || lower === 'end') return null;
-  for (var ci = 0; ci < DIFF_CATEGORIES.length; ci++) {
-    var cat = DIFF_CATEGORIES[ci];
-    for (var ki = 0; ki < cat.keywords.length; ki++) {
-      if (lower.includes(cat.keywords[ki])) return cat.id;
-    }
-  }
-  return null;
-}
-
-function classifyLines(linesA, linesB) {
-  var setA = new Set(); var arrA = [];
-  var setB = new Set(); var arrB = [];
-  linesA.forEach(function(l) { var t = l.trim(); if (t && t !== '!' && t !== 'end') { setA.add(t); arrA.push(t); } });
-  linesB.forEach(function(l) { var t = l.trim(); if (t && t !== '!' && t !== 'end') { setB.add(t); arrB.push(t); } });
-  var result = {};
-  DIFF_CATEGORIES.forEach(function(c) { result[c.id] = { added: [], removed: [], modified: [], identical: [] }; });
-  result._uncategorized = { added: [], removed: [], modified: [], identical: [] };
-
-  var consumedA = new Set();
-
-  arrB.forEach(function(line) {
-    if (setA.has(line)) {
-      var cat = categorizeLine(line) || '_uncategorized';
-      result[cat].identical.push(line);
-    } else {
-      var isMod = false;
-      var bParts = line.split(/\s+/);
-      var bBase = bParts.slice(0, Math.min(3, bParts.length)).join(' ');
-      for (var ai = 0; ai < arrA.length; ai++) {
-        var aLine = arrA[ai];
-        if (consumedA.has(aLine) || setB.has(aLine)) continue;
-        var aParts = aLine.split(/\s+/);
-        var aBase = aParts.slice(0, Math.min(3, aParts.length)).join(' ');
-        if (aBase === bBase && aLine !== line) {
-          var cat2 = categorizeLine(line) || '_uncategorized';
-          result[cat2].modified.push({ a: aLine, b: line });
-          consumedA.add(aLine);
-          isMod = true;
-          break;
-        }
-      }
-      if (!isMod) {
-        var cat3 = categorizeLine(line) || '_uncategorized';
-        result[cat3].added.push(line);
-      }
-    }
-  });
-
-  arrA.forEach(function(line) {
-    if (!setB.has(line) && !consumedA.has(line)) {
-      var cat = categorizeLine(line) || '_uncategorized';
-      result[cat].removed.push(line);
-    }
-  });
-
-  return result;
 }
 
 function runDiff() {
@@ -2071,149 +1960,6 @@ function toggleIdentical(btn) {
   btn.textContent = visible ? '▸ Mostra ' + count + ' righe identiche' : '▾ Nascondi ' + count + ' righe identiche';
 }
 
-// ─── EXPORT PER AGENTI NETWORKING ───
-
-var SKILL_MAP = {
-  cisco: {
-    switch: ['cisco-standard-switch-base','cisco-standard-switch-lan','cisco-standard-etherchannel'],
-    router: ['cisco-standard-wan-config','cisco-standard-nat-pat','cisco-standard-bfd','cisco-qos-policy'],
-    defaults: ['cisco-standard-logging','cisco-standard-ntp','cisco-standard-radius-aaa','cisco-standard-management','cisco-smart-licensing']
-  },
-  huawei: {
-    switch: ['huawei-standard-switch-base','huawei-standard-switch-lan','huawei-standard-switch-commands'],
-    router: ['huawei-standard-wan-config','huawei-standard-nat-pat'],
-    defaults: ['huawei-standard-logging','huawei-standard-ntp','huawei-standard-radius-aaa','huawei-standard-management']
-  },
-  bgp: {
-    cisco:  ['cisco-bgp-lan-customer-z','cisco-bgp-lan-customer-a'],
-    huawei: ['huawei-bgp-lan-customer-z','huawei-bgp-lan-customer-a']
-  },
-  routing: {
-    cisco:  ['ip-sla-migration','change-management-static-routes'],
-    huawei: ['huawei-standard-routing-scenario-z','huawei-standard-routing-scenario-a','huawei-standard-routing-scenario-c']
-  },
-  migration: ['migration-as-is-to-be','migration-mop-generation','migration-vrf-client-vpn'],
-  discovery: ['discovery-matcher'],
-  docs:     ['network-diagram-prompting','network-project-orchestrator']
-};
-
-var AGENT_TO_SKILL_CATEGORY = {
-  'agent-discovery-assessment':  ['discovery'],
-  'agent-delta-analysis':        ['discovery'],
-  'agent-document-scaffolding':  ['docs'],
-  'agent-cli-templating':        [],
-  'agent-mop-generator':         ['migration'],
-  'agent-migration-planner':     ['migration'],
-  'agent-vendor-translation':    []
-};
-
-function detectVendor(config) {
-  var c = config.toLowerCase();
-  var ciscoScore = 0, huaweiScore = 0;
-  var ciscoKw = ['cisco','catalyst','nexus','interface gigabitethernet','router bgp','ip route','ip ssh','aaa new-model','spanning-tree vlan','switchport','ip access-list','bfd-template','ip sla','snmp-server','logging ','ntp server','service password','enable secret','username ','line vty','ip http','crypto key'];
-  var huaweiKw = ['huawei','vrp','interface vlanif','display ','undo ','sysname','stelnet','hwtacacs','local-user','authentication-mode','speed auto','duplex auto','dhcp enable','vlan batch','port link-type','port default vlan','voice-vlan','ntp-service','snmp-agent','info-center','radius-server','acl number','traffic classifier','traffic behavior'];
-
-  for (var i = 0; i < ciscoKw.length; i++) {
-    if (c.indexOf(ciscoKw[i]) !== -1) ciscoScore++;
-  }
-  for (var j = 0; j < huaweiKw.length; j++) {
-    if (c.indexOf(huaweiKw[j]) !== -1) huaweiScore++;
-  }
-
-  if (ciscoScore > huaweiScore && ciscoScore >= 3) return 'cisco';
-  if (huaweiScore > ciscoScore && huaweiScore >= 3) return 'huawei';
-  if (ciscoScore > 0 && huaweiScore > 0) return 'mixed';
-  return null;
-}
-
-function detectDeviceType(config) {
-  var c = config.toLowerCase();
-  var switchScore = 0, routerScore = 0;
-  var switchKw = ['switchport','spanning-tree','vlan','voice vlan','port-security','poe','lldp run','vtp','mac address-table','storm-control','portfast','bpduguard','stack','stackwise','port link-type','port default vlan'];
-  var routerKw = ['router bgp','router ospf','router eigrp','router isis','ip route 0.0.0.0','bfd','ip sla','nat','redistribute','route-map','neighbor ','vrf','ip vrf','mpls','l2vpn','xconnect'];
-
-  for (var i = 0; i < switchKw.length; i++) {
-    if (c.indexOf(switchKw[i]) !== -1) switchScore++;
-  }
-  for (var j = 0; j < routerKw.length; j++) {
-    if (c.indexOf(routerKw[j]) !== -1) routerScore++;
-  }
-
-  if (switchScore > routerScore && switchScore >= 2) return 'switch';
-  if (routerScore > switchScore && routerScore >= 2) return 'router';
-  if (switchScore > 0 && routerScore > 0) return 'switch'; // default a switch se ibrido (es. L3 switch)
-  return 'unknown';
-}
-
-function hasFeature(config, featureKw) {
-  var c = config.toLowerCase();
-  for (var i = 0; i < featureKw.length; i++) {
-    if (c.indexOf(featureKw[i]) !== -1) return true;
-  }
-  return false;
-}
-
-function getNetworkingSkills(vendor, deviceType, agentIds) {
-  var skills = [];
-  var seen = {};
-
-  function add(arr) {
-    if (!arr) return;
-    for (var i = 0; i < arr.length; i++) {
-      if (!seen[arr[i]]) { seen[arr[i]] = true; skills.push(arr[i]); }
-    }
-  }
-
-  var config = document.getElementById('configInput').value;
-
-  // Base skills per vendor + device type
-  if (vendor && SKILL_MAP[vendor]) {
-    add(SKILL_MAP[vendor].defaults);
-    if (deviceType && SKILL_MAP[vendor][deviceType]) {
-      add(SKILL_MAP[vendor][deviceType]);
-    }
-  }
-
-  // Feature detection
-  if (vendor && hasFeature(config, ['router bgp','bgp ','neighbor','remote-as'])) {
-    add(SKILL_MAP.bgp && SKILL_MAP.bgp[vendor]);
-  }
-  if (vendor && hasFeature(config, ['ip sla','track ','icmp-echo'])) {
-    if (SKILL_MAP.routing && SKILL_MAP.routing[vendor]) add(SKILL_MAP.routing[vendor]);
-  }
-  if (hasFeature(config, ['bfd','fall-over bfd','bfd-template'])) {
-    add(['cisco-standard-bfd']);
-  }
-  if (hasFeature(config, ['etherchannel','port-channel','channel-group','lacp','pagp'])) {
-    add(['cisco-standard-etherchannel']);
-  }
-  if (hasFeature(config, ['qos','policy-map','class-map','service-policy','dscp','priority','bandwidth'])) {
-    add(['cisco-qos-policy']);
-  }
-  if (hasFeature(config, ['dmvpn','tunnel protection','nhrp'])) {
-    add(['dmvpn-design']);
-  }
-
-  // Agent-based skills
-  for (var ai = 0; ai < agentIds.length; ai++) {
-    var cats = AGENT_TO_SKILL_CATEGORY[agentIds[ai]];
-    if (cats) {
-      for (var ci = 0; ci < cats.length; ci++) {
-        add(SKILL_MAP[cats[ci]]);
-      }
-    }
-  }
-
-  // If migration agents selected, also add vendor-specific standard skills for completeness
-  var hasMigration = agentIds.some(function(id) { return id === 'agent-migration-planner' || id === 'agent-mop-generator'; });
-  if (hasMigration && skills.length < 5) {
-    // Ensure at least the defaults are included
-    if (vendor && SKILL_MAP[vendor]) add(SKILL_MAP[vendor].defaults);
-  }
-
-  return skills;
-}
-
 function exportForNetworkingSkills() {
   var config = document.getElementById('configInput').value.trim();
   var raw = document.getElementById('rawContext').value.trim();
@@ -2227,9 +1973,10 @@ function exportForNetworkingSkills() {
     return;
   }
 
-  var vendor = detectVendor(config);
-  var deviceType = detectDeviceType(config);
-  var skills = getNetworkingSkills(vendor, deviceType, selectedAgents.map(function(a) { return a; }));
+  var lowerConfig = config.toLowerCase();
+  var vendor = detectVendor(config, lowerConfig);
+  var deviceType = detectDeviceType(config, lowerConfig);
+  var skills = getNetworkingSkills(vendor, deviceType, selectedAgents, config);
 
   // Build export prompt
   var now = new Date().toLocaleString('it-IT');
@@ -2242,7 +1989,7 @@ function exportForNetworkingSkills() {
   prompt += '═══════════════════════════════════\n';
   prompt += 'Vendor rilevato:  ' + vendorLabel + '\n';
   prompt += 'Dispositivo:      ' + deviceLabel + '\n';
-  prompt += 'Agenti originali: ' + selectedAgents.map(function(id) { var a = AGENTS.find(function(x) { return x.id === id; }); return a ? a.label : id; }).join(' → ') + '\n';
+  prompt += 'Agenti originali: ' + selectedAgents.map(function(id) { var a = AGENT_MAP[id]; return a ? a.label : id; }).join(' → ') + '\n';
   prompt += 'Skill mappate:    ' + skills.join(', ') + '\n';
   prompt += '\n';
   prompt += '═══════════════════════════════════\n';
@@ -2311,16 +2058,8 @@ function exportForNetworkingSkills() {
 function copyExportPrompt() {
   var el = document.getElementById('exportPromptOutput');
   if (!el) return;
-  var text = el.textContent;
-  navigator.clipboard.writeText(text).then(function() {
-    showToast('📋 Prompt networking copiato! Incollalo nella chat con Hermes.');
-  }).catch(function() {
-    var range = document.createRange();
-    range.selectNode(el);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
-    showToast('📋 Selezionato — Copia (Ctrl+C)');
-  });
+  if (!el.textContent) return;
+  copyElementText('exportPromptOutput', '📋 Prompt networking copiato! Incollalo nella chat con Hermes.');
 }
 
 // ─── INVIO AD HERMES ───
@@ -2441,9 +2180,7 @@ function loadSession() {
     document.getElementById('configInput').value = data.config || '';
     document.getElementById('rawContext').value = data.context || '';
     selectedAgents = data.agents || [];
-    renderAgentSelectors();
-    renderPipeline();
-    updatePromptReady();
+    refreshAgentUI();
     updateSessionUI(true);
     showToast('📂 Sessione caricata');
   } catch(e) {
@@ -2495,9 +2232,7 @@ function restoreSessionOnLoad() {
       document.getElementById('rawContext').value = data.context || '';
       if (data.agents) {
         selectedAgents = data.agents;
-        renderAgentSelectors();
-        renderPipeline();
-        updatePromptReady();
+        refreshAgentUI();
       }
       updateSessionUI(true);
     }
@@ -2570,9 +2305,7 @@ function loadPreset(id) {
   }
   if (!agents) { showToast('⚠️ Preset non trovato'); return; }
   selectedAgents = agents.slice();
-  renderAgentSelectors();
-  renderPipeline();
-  updatePromptReady();
+  refreshAgentUI();
   autoSaveSession();
   switchTab('input');
   showToast('📌 Preset caricato');
@@ -2597,7 +2330,7 @@ function renderPresets() {
   // Built-in presets
   Object.keys(BUILTIN_PRESETS).forEach(function(id) {
     var p = BUILTIN_PRESETS[id];
-    var agentLabels = p.agents.map(function(aid) { var a = AGENTS.find(function(x) { return x.id === aid; }); return a ? a.label.split(' ')[0] : aid; }).join(' → ');
+    var agentLabels = p.agents.map(function(aid) { var a = AGENT_MAP[aid]; return a ? a.label.split(' ')[0] : aid; }).join(' → ');
     html += '<div class="preset-card" style="margin-bottom:8px;" onclick="loadPreset(\'' + id + '\')">' +
       '<div>' +
         '<div class="preset-name">' + p.name + ' <span style="font-size:0.65rem;color:var(--teal);">(predefinito)</span></div>' +
@@ -2609,7 +2342,7 @@ function renderPresets() {
   // User presets
   presetNames.forEach(function(name) {
     var agents = presets[name];
-    var agentLabels = agents.map(function(aid) { var a = AGENTS.find(function(x) { return x.id === aid; }); return a ? a.label.split(' ')[0] : aid; }).join(' → ');
+    var agentLabels = agents.map(function(aid) { var a = AGENT_MAP[aid]; return a ? a.label.split(' ')[0] : aid; }).join(' → ');
     html += '<div class="preset-card" style="margin-bottom:8px;">' +
       '<div onclick="loadPreset(\'' + name.replace(/'/g, "\\'") + '\')" style="flex:1;cursor:pointer;">' +
         '<div class="preset-name">📌 ' + name + '</div>' +
@@ -2692,11 +2425,6 @@ function autoSaveReport() {
 
 // ─── INIT ───
 
-renderAgentSelectors();
-renderPipeline();
-renderAgentDetail();
-updatePromptReady();
-initDiffDropZones();
 renderPresets();
 restoreSessionOnLoad();
 
@@ -2822,13 +2550,7 @@ var queueAbortController = null;
 (function() {
   var qdz = document.getElementById('queueDropZone');
   if (qdz) {
-    qdz.addEventListener('dragover', function(e) { e.preventDefault(); qdz.style.borderColor = 'var(--accent)'; });
-    qdz.addEventListener('dragleave', function() { qdz.style.borderColor = 'var(--border)'; });
-    qdz.addEventListener('drop', function(e) {
-      e.preventDefault();
-      qdz.style.borderColor = 'var(--border)';
-      if (e.dataTransfer.files.length > 0) addToQueue(e.dataTransfer.files);
-    });
+    setupDropZone(qdz, addToQueue);
   }
 })();
 
@@ -2906,7 +2628,7 @@ function updateQueueUI() {
     else if (item.status === 'completed') itemClass = ' completed';
     else if (item.status === 'error') itemClass = ' error';
 
-    var sizeStr = item.size < 1024 ? item.size + ' B' : (item.size/1024).toFixed(1) + ' KB';
+    var sizeStr = formatBytes(item.size);
     var removeBtn = (item.status === 'waiting')
       ? '<button class="qi-remove" onclick="event.stopPropagation();removeFromQueue(' + i + ')">✕</button>'
       : '';
@@ -2947,9 +2669,8 @@ function stopQueue() {
   queueRunning = false;
   document.getElementById('btnStartQueue').style.display = 'inline-block';
   document.getElementById('btnStopQueue').style.display = 'none';
-  // Marca gli item in attesa come non processati
+  // Marca gli item running come error
   queueItems.forEach(function(item) {
-    if (item.status === 'waiting') item.status = 'waiting'; // resta in attesa
     if (item.status === 'running') item.status = 'error';
   });
   updateQueueUI();
